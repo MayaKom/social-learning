@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Study preview</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background: #F2F3F5; color: #1D2330; margin: 0; line-height: 1.55; }
+  main { max-width: 760px; margin: 32px auto; padding: 24px 28px; background: #fff; border: 1px solid #D6D9DF; border-radius: 14px; }
+  h1 { font-size: 24px; margin: 0 0 6px; }
+  p { max-width: 66ch; }
+  table { border-collapse: collapse; width: 100%; margin: 14px 0 6px; }
+  th, td { border: 1px solid #D6D9DF; padding: 8px 10px; text-align: left; font-size: 15px; }
+  th { background: #F6F7F9; }
+  a { color: #3C3489; }
+  .note { color: #5A6272; font-size: 14px; }
+  label { font-size: 15px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Study preview</h1>
+  <p>This page is for collaborators. Each link opens the study in one condition. Nothing you enter is saved
+     if the copy you are viewing has <code>saveMethod: 'none'</code> in <code>js/config.js</code>.</p>
+  <p><label><input type="checkbox" id="fast"> Play Alex&rsquo;s rounds four times faster</label></p>
+  <table id="links"><thead><tr><th>Condition</th><th colspan="4">Value version (which resource is worth what)</th></tr></thead><tbody></tbody></table>
+  <p class="note">Versions: 0 = grain best, ore second, wood third, water worst; 1 = ore, wood, water, grain;
+     2 = wood, water, grain, ore; 3 = water, grain, ore, wood.</p>
+</main>
+<script>
+  const conds = [['similar', 'Similar'], ['dissimilar', 'Dissimilar'], ['control', 'Control']];
+  function draw() {
+    const fast = document.getElementById('fast').checked ? '&speed=4' : '';
+    document.querySelector('#links tbody').innerHTML = conds.map(([k, label]) =>
+      `<tr><td>${label}</td>${[0, 1, 2, 3].map(cb => `<td><a href="index.html?agent=${k}&cb=${cb}${fast}">Version ${cb}</a></td>`).join('')}</tr>`).join('');
+  }
+  document.getElementById('fast').addEventListener('change', draw);
+  draw();
+</script>
+</body>
+</html>
