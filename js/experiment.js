@@ -54,8 +54,6 @@
     const itemInline = role => { const it = G.itemFor(role, S.cb); return `<span class="gw-inline">${itemIcon(it, 24, false)}${G.itemName(it)}</span>`; };
     const lineup = () => `<div class="gw-lineup">${G.ITEMS.map(i => `<figure>${itemIcon(i, 64, false)}<figcaption>${G.itemName(i)}</figcaption></figure>`).join('')}</div>`;
     const isSimCondition = () => S.agent === 'similar' || S.agent === 'dissimilar';
-    // Expert description: identical in every condition.
-    const expertText = () => `${S.name} knows exactly what each kind of resource is worth and always collects the most valuable resource available.`;
 
     // Similarity manipulation, shown on the "Meet Alex" screen (similar and dissimilar conditions).
     function matchHTML() {
@@ -273,9 +271,9 @@
       return `<div class="gw-profile">` +
         `<img class="gw-portrait" src="${CONFIG.humanPortrait}" alt="" width="120">` +
         (reminder ? `<h3 class="gw-card-title">About ${S.name}</h3>` : '') +
-        `<p>${S.name} has done this task many times and over the last 20 trials has collected the maximum number of points every time.</p>` +
-        (isSimCondition() ? matchHTML() : '') +
-        `<p>${expertText()}</p></div>`;
+        `<p>${S.name} has done this task many times and over the last 20 trials has collected the maximum number of points every time. 
+        By now ${S.name} is an expert on the Gridworld and knows exactly what each kind of resource is worth.</p>` +
+        (isSimCondition() ? matchHTML() : '');
     }
     timeline.push({
       type: jsPsychHtmlButtonResponse,
