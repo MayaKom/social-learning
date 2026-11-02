@@ -1,0 +1,52 @@
+server name: devlookit.gse.harvard.edu
+username: mak2251
+password:  71707032Mk!
+
+step 1: connect to vpn
+step 2: log in with my username
+ssh mak2251@devlookit.gse.harvard.edu
+ssh mak2251@prdeblookit.gse.harvard.edu
+
+
+step 3: ssh webadmin@localhost
+ssh webadmin@prdeblookit
+step 4: move to my directory
+
+my directory is: cd /home/webadmin/htdocs/uncertaintitytask
+
+This is my development website devdecisiontask.gse.harvard.edu
+Can change password with this command
+passwd
+
+
+How to copy from computer to my server folder:
+* make sure you copied into server_folder
+
+1. scp -r "C:\Users\mayak\Desktop\uncertainty\uncertainty_task_clean" \mak2251@prdeblookit.gse.harvard.edu:~
+
+2. log in to the server ssh mak2251@prdeblookit.gse.harvard.edu
+
+2. cd ~/uncertainty_task_clean
+
+3. [mak2251@prdeblookit uncertainty_task]$ scp -r * webadmin@localhost:/home/webadmin/htdocs/uncertaintitytask/
+
+How to download data files:
+1. zip the data folder 
+[webadmin@prdeblookit uncertaintitytask]
+$ zip -r data_backup_$(date +%Y-%m-%d).zip data
+
+2. copy to my username home (update the folder name)
+[mak2251@prdeblookit uncertainty_task_clean]
+$ scp webadmin@prdeblookit.gse.harvard.edu:~/uncertaintitytask/data_backup_2026-01-13.zip .
+
+scp webadmin@prdeblookit:~/htdocs/uncertaintitytask/data_backupnew.zip .
+
+3. mayak@DESKTOP-RPHUTKO MINGW64 ~/Desktop/uncertainty/uncertainty_task (main)
+$ scp mak2251@prdeblookit.gse.harvard.edu:~/uncertainty_task_clean/data_backup_2026-01-13.zip .
+
+
+deleting a folder with contents without being prompted
+rm -rf folder_name
+
+deleting contents and subdirectories without deleting the directory itself
+rm -rf *

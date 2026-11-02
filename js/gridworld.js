@@ -93,10 +93,16 @@
   const ease = k => k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
   const angDiff = (a, b) => { let d = b - a; while (d > 180) d -= 360; while (d < -180) d += 360; return d; };
 
+  // Animation timings (ms) used both while recording on record.html and when replaying a recording,
+  // so a replay shows exactly what the demonstrator saw while recording.
+  const LIVE = { step: 140, look: 110, moveTurn: 220, bump: 200, collect: 350 };
+
   class GridWorld {
-    constructor(container, { cb = 0, speed = 1, timing = {}, label = 'Grid', avatar = 'neutral' } = {}) {
+    constructor(container, { cb = 0, speed = 1, timing = {}, label = 'Grid', avatar = 'neutral', fov = null } = {}) {
       ensureDefs();
       this.avatar = avatar;
+      // Field of view in degrees: Alex only sees within this cone around the facing direction.
+      this.fov = fov !== null ? fov : (typeof CONFIG !== 'undefined' && CONFIG.fieldOfView) || 360;
       this.cb = cb; this.speed = speed; this.T = Object.assign({}, DEFAULT_TIMING, timing); this.alive = true;
       container.innerHTML = `<svg class="gw-board" viewBox="0 0 680 360" role="img" aria-label="${label}">
         <defs>
@@ -162,12 +168,12 @@
       this.h = -90; this.cell = stim.start.slice(); this.steps = 0;
       this.render();
     }
-    reveal(x, y) {
-      for (const f of this.fog) if (!f.seen && G.cellVisibleFrom(this.W.rects, x, y, f.c, f.r)) { f.seen = true; f.el.setAttribute('visibility', 'hidden'); }
+    reveal(x, y, h = this.h) {
+      for (const f of this.fog) if (!f.seen && G.cellVisibleFrom(this.W.rects, x, y, f.c, f.r, h, this.fov)) { f.seen = true; f.el.setAttribute('visibility', 'hidden'); }
     }
     render() {
       this.ag.setAttribute('transform', `translate(${this.x.toFixed(1)},${this.y.toFixed(1)}) rotate(${this.h.toFixed(1)})`);
-      this.reveal(this.x, this.y);
+      this.reveal(this.x, this.y, this.h);
     }
     tween(ms, fn) {
       return new Promise(res => {
@@ -189,11 +195,11 @@
       return this.tween(ms, k => { this.h = from + d * ease(k); });
     }
     lookAt([c, r]) { const [tx, ty] = G.ctr(c, r); return this.turnTo(Math.atan2(ty - this.y, tx - this.x) * 180 / Math.PI); }
-    async stepTo(c, r) {
+    async stepTo(c, r, ms = this.T.step) {
       const [tx, ty] = G.ctr(c, r), fx = this.x, fy = this.y;
       const hd = Math.atan2(ty - fy, tx - fx) * 180 / Math.PI;
-      if (Math.abs(angDiff(this.h, hd)) > 5 && !(await this.turnTo(hd, 220))) return false;
-      const ok = await this.tween(this.T.step, k => { this.x = fx + (tx - fx) * k; this.y = fy + (ty - fy) * k; });
+      if (Math.abs(angDiff(this.h, hd)) > 5 && !(await this.turnTo(hd, LIVE.moveTurn))) return false;
+      const ok = await this.tween(ms, k => { this.x = fx + (tx - fx) * k; this.y = fy + (ty - fy) * k; });
       if (ok) { this.cell = [c, r]; this.steps++; }
       return ok;
     }
@@ -208,8 +214,8 @@
       this.x = fx; this.y = fy;
       return this.wait(this.T.look * 0.6);
     }
-    collect(it) { return this.tween(this.T.collect, k => it.el.setAttribute('opacity', (1 - k).toFixed(2))); }
-    visible(it) { return G.cellVisibleFrom(this.W.rects, this.x, this.y, ...it.cell); }
+    collect(it, ms = this.T.collect) { return this.tween(ms, k => it.el.setAttribute('opacity', (1 - k).toFixed(2))); }
+    visible(it) { return G.cellVisibleFrom(this.W.rects, this.x, this.y, ...it.cell, this.h, this.fov); }
     dist(it) { return Math.abs(it.cell[0] - this.cell[0]) + Math.abs(it.cell[1] - this.cell[1]); }
 
     // Gaze rule, identical in every demonstration: look at each visible item at the start (nearest
@@ -261,12 +267,61 @@
       });
     }
 
-    snapshot(stim, cell, heading) {
+    // Small push towards a cell and back: a move that was blocked (wall, gap or grid edge).
+    async nudge([c, r], ms = 260) {
+      const [tx, ty] = G.ctr(c, r), fx = this.x, fy = this.y;
+      this.h = Math.atan2(ty - fy, tx - fx) * 180 / Math.PI;
+      const ok = await this.tween(ms, k => { const e = Math.sin(k * Math.PI) * 0.28; this.x = fx + (tx - fx) * e; this.y = fy + (ty - fy) * e; });
+      this.x = fx; this.y = fy; this.render();
+      return ok;
+    }
+
+    // Replays a recording from record.html exactly as it looked while recording: the same animations
+    // with the same durations (LIVE), one after another, each starting when its key was pressed or, if
+    // the previous one was still running (keys pressed quickly), as soon as it finished. All times are
+    // divided by `speed`, which is only used for testing.
+    async playRecording(stim, rec) {
       this.setup(stim, 'demo');
-      for (const a of G.expand(stim)) {
-        if (!a.step) continue;
-        this.reveal(...G.ctr(...a.step));
-        if (a.step[0] === cell[0] && a.step[1] === cell[1]) break;
+      const t0 = performance.now();
+      const recordedNow = () => (performance.now() - t0) * this.speed;
+      for (const e of rec.events) {
+        if (e.t > recordedNow() && !(await this.wait(e.t - recordedNow()))) return false;
+        if (e.type === 'move') {
+          if (!(await this.stepTo(...e.to, LIVE.step))) return false;
+        } else if (e.type === 'turn') {
+          if (!(await this.turnTo(e.heading, LIVE.look))) return false;
+        } else if (e.type === 'bump') {
+          if (!(await this.nudge(e.toward, LIVE.bump))) return false;
+        } else if (e.type === 'collect') {
+          const it = this.items.find(i2 => i2.cell[0] === this.cell[0] && i2.cell[1] === this.cell[1]);
+          if (it) await this.collect(it, LIVE.collect);
+        }
+        if (!this.alive) return false;
+      }
+      return this.alive;
+    }
+
+    snapshot(stim, cell, heading, recording = null) {
+      this.setup(stim, 'demo');
+      // The frame shows the fog as it was when the demonstrator first reached `cell`, following the
+      // route's moves and looks (the view sweeps when turning, as in the replay).
+      const route = recording ? G.recordingToActs(recording) : G.expand(stim);
+      let pos = stim.start.slice(), h = -90;
+      this.reveal(...G.ctr(...pos), h);
+      const sweep = to => { for (const hh of G.sweepHeadings(h, to)) this.reveal(...G.ctr(...pos), hh); h = to; };
+      for (const a of route) {
+        if (a.step) {
+          const dir = Math.atan2(a.step[1] - pos[1], a.step[0] - pos[0]) * 180 / Math.PI;
+          if (Math.abs(angDiff(h, dir)) > 5) sweep(dir); h = dir;
+          for (const [x, y] of G.pathPoints(pos, a.step)) this.reveal(x, y, h);
+          pos = a.step.slice();
+          if (pos[0] === cell[0] && pos[1] === cell[1]) break;
+        } else if (a.look !== undefined) {
+          const [x, y] = G.ctr(...pos);
+          sweep(Array.isArray(a.look) ? Math.atan2(G.ctr(...a.look)[1] - y, G.ctr(...a.look)[0] - x) * 180 / Math.PI : a.look);
+        } else if (a.bump) {
+          h = Math.atan2(a.bump[1] - pos[1], a.bump[0] - pos[0]) * 180 / Math.PI; this.reveal(...G.ctr(...pos), h);
+        }
       }
       [this.x, this.y] = G.ctr(...cell); this.cell = cell.slice(); this.h = heading;
       this.render();
@@ -285,7 +340,7 @@
       const q = s => display_element.querySelector(s);
       const world = new GridWorld(q('.gw-board-wrap'), { cb: trial.counterbalance, speed: trial.speed, timing: trial.timing, label: 'Demonstration', avatar: trial.avatar });
       const t0 = performance.now();
-      world.playDemo(trial.stimulus).then(ok => {
+      world.playRecording(trial.stimulus, trial.recording).then(ok => {
         if (!ok) return;
         const watch_ms = Math.round(performance.now() - t0);
         const next = q('.gw-next');
@@ -309,7 +364,8 @@
             if (!response) { q('.gw-err').textContent = 'Please write a short answer to continue.'; return; }
           }
           world.destroy();
-          this.jsPsych.finishTrial({ demo_id: trial.stimulus.id, watch_ms, prompt: trial.prompt, response,
+          this.jsPsych.finishTrial({ demo_id: trial.stimulus.id, demo_source: 'recording',
+            recording_made: trial.recording.recorded_at || null, watch_ms, prompt: trial.prompt, response,
             prompt_view_ms: Math.round(performance.now() - tq) });
         });
       });
@@ -319,6 +375,7 @@
     name: 'grid-demo', version: '1.0.0',
     parameters: {
       stimulus: { type: P.COMPLEX, default: undefined },
+      recording: { type: P.COMPLEX, default: null },
       counterbalance: { type: P.INT, default: 0 },
       avatar: { type: P.STRING, default: 'neutral' },
       speed: { type: P.FLOAT, default: 1 },
@@ -330,7 +387,7 @@
       button_label: { type: P.STRING, default: 'Continue' }
     },
     data: {
-      demo_id: { type: P.STRING }, watch_ms: { type: P.INT }, prompt: { type: P.STRING },
+      demo_id: { type: P.STRING }, demo_source: { type: P.STRING }, recording_made: { type: P.STRING }, watch_ms: { type: P.INT }, prompt: { type: P.STRING },
       response: { type: P.STRING }, prompt_view_ms: { type: P.INT }
     },
     citations
@@ -454,7 +511,7 @@
         <div class="gw-row"><span></span><button type="button" class="jspsych-btn gw-next">${trial.button_label}</button></div></div>`;
       const q = s => display_element.querySelector(s);
       const world = new GridWorld(q('.gw-board-wrap'), { cb: trial.counterbalance, label: 'Moment from a demonstration', avatar: trial.avatar });
-      world.snapshot(trial.stimulus, trial.agent_cell, trial.heading);
+      world.snapshot(trial.stimulus, trial.agent_cell, trial.heading, trial.recording);
       const t0 = performance.now();
       let choice = null, choiceRt = null, moved = false;
       display_element.querySelectorAll('.gw-opt').forEach(b => b.addEventListener('click', () => {
@@ -481,6 +538,7 @@
       probe_id: { type: P.STRING, default: '' },
       stimulus: { type: P.COMPLEX, default: undefined },
       agent_cell: { type: P.COMPLEX, default: undefined },
+      recording: { type: P.COMPLEX, default: null },
       avatar: { type: P.STRING, default: 'neutral' },
       heading: { type: P.FLOAT, default: 0 },
       counterbalance: { type: P.INT, default: 0 },
@@ -498,6 +556,7 @@
     citations
   };
 
+  GridWorld.LIVE = LIVE;
   window.GridWorld = GridWorld;
   window.GridArt = { itemIcon, agentIcon, portrait, ensureDefs, AVATARS };
   window.jsPsychGridDemo = GridDemoPlugin;

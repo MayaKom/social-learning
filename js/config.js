@@ -2,22 +2,32 @@
  * Study configuration. Most changes you will need to make before launching are in this file.
  */
 const CONFIG = {
-  studyVersion: '0.1.0',
+  studyVersion: '0.4.0',
 
   // ---- Data saving ----
+  // 'server'   : saves to the university server through api/save.php (the live study on Prolific).
+  //              The study must be served from the same server, e.g.
+  //              https://decisiontask.gse.harvard.edu/index.html
   // 'local'    : downloads a CSV file at the end (for testing on your own computer only)
   // 'datapipe' : saves to OSF through DataPipe (https://pipe.jspsych.org); works on any static host
   // 'jatos'    : saves to a JATOS server (also uncomment the jatos.js line in index.html)
   // 'none'     : saves nothing (for a preview copy shared with collaborators)
-  saveMethod: 'local',
+  saveMethod: 'server',
+  saveUrl: 'https://decisiontask.gse.harvard.edu/api/save.php',
+  assignUrl: 'https://decisiontask.gse.harvard.edu/api/condition.php',
+  saveAttempts: 3,
+  // Name written into every row of the data (column meta_study), so files from this study can be
+  // told apart from the previous study's files in the same data folder.
+  studyName: 'similarity-learning',
   datapipeExperimentId: 'REPLACE_WITH_DATAPIPE_ID',
   // Balanced condition assignment through DataPipe. Set the number of conditions to 12 on the
   // DataPipe site (3 demonstrator conditions x 4 counterbalancing versions).
   useDataPipeConditions: false,
 
   // ---- Prolific ----
-  // Leave completionUrl empty to skip the redirect at the end.
-  prolificCompletionUrl: '',
+  prolificCompletionUrl: 'https://app.prolific.com/submissions/complete?cc=CG5DXH6B',
+  prolificReturnUrl: 'https://app.prolific.com/submissions/complete?cc=CVQ0SPSC',
+  comprehensionMaxAttempts: 3,
 
   // ---- Conditions ----
   agentConditions: ['similar', 'dissimilar', 'control'],
@@ -32,7 +42,7 @@ const CONFIG = {
   // Animation timing in milliseconds: demonstrations (timing) and the participant's own moves (testTiming).
   timing: { start: 1000, look: 1300, turn: 420, step: 420, collect: 600 },
   testTiming: { start: 0, look: 0, turn: 220, step: 240, collect: 400 },
-
+  fieldOfView: 120,
   // ---- "About you" questions, asked before the task ----
   // Used for the similarity manipulation. On the "Meet Alex" screen, the topic the participant
   // rated most extremely (furthest from the midpoint; ties at random) is named: "Alex feels the
@@ -40,20 +50,28 @@ const CONFIG = {
   // favorite avatar is the participant's choice (similar) or one of the other two (dissimilar),
   // and Alex appears with that avatar in every round. `topic` is the word used in the sentence.
   preferenceItems: [
-    { id: 'music', question: 'What kind of music do you like most?', importance: 'How important is music to you?',
+    {
+      id: 'music', question: 'What kind of music do you like most?', importance: 'How important is music to you?',
       topic: 'music', verb: 'is',
-      options: ['Pop', 'Rock', 'Hip-hop', 'Classical', 'Jazz', 'Electronic', 'Country', 'Folk'] },
-    { id: 'movie', question: 'What kind of movie do you enjoy most?', importance: 'How important are movies to you?',
+      options: ['Pop', 'Rock', 'Hip-hop', 'Classical', 'Jazz', 'Electronic', 'Country', 'Folk']
+    },
+    {
+      id: 'movie', question: 'What kind of movie do you enjoy most?', importance: 'How important are movies to you?',
       topic: 'movies', verb: 'are',
-      options: ['Comedy', 'Drama', 'Action', 'Horror', 'Science fiction', 'Documentary', 'Romance', 'Animation'] },
-    { id: 'vacation', question: 'What kind of vacation do you enjoy most?', importance: 'How important are vacations to you?',
+      options: ['Comedy', 'Drama', 'Action', 'Horror', 'Science fiction', 'Documentary', 'Romance', 'Animation']
+    },
+    {
+      id: 'vacation', question: 'What kind of vacation do you enjoy most?', importance: 'How important are vacations to you?',
       topic: 'vacations', verb: 'are',
-      options: ['Beach', 'City', 'Mountains', 'Countryside', 'Cruise', 'Camping'] },
-    { id: 'food', question: 'What kind of food do you enjoy most?', importance: 'How important is food to you?',
+      options: ['Beach', 'City', 'Mountains', 'Countryside', 'Cruise', 'Camping']
+    },
+    {
+      id: 'food', question: 'What kind of food do you enjoy most?', importance: 'How important is food to you?',
       topic: 'food', verb: 'is',
-      options: ['Italian', 'Chinese', 'Indian', 'Mexican', 'Japanese', 'Middle Eastern', 'Thai', 'French'] }
+      options: ['Italian', 'Chinese', 'Indian', 'Mexican', 'Japanese', 'Middle Eastern', 'Thai', 'French']
+    }
   ],
-  avatarQuestion: 'Which of the following avatars do you like best?',
+  avatarQuestion: 'Which of the following avatars would you like to play with in this game?',
   avatarOptions: ['blue', 'burgundy', 'green'],
   // Used on the "Meet Alex" screen: "Alex answered the same questions about ..."
   topicsText: 'music, vacations, movies, food and avatars',

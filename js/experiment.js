@@ -9,12 +9,60 @@
   const { itemIcon, agentIcon, portrait, AVATARS } = window.GridArt;
   const N_CELLS = CONFIG.agentConditions.length * G.ITEMS.length; // 3 x 4 = 12
 
+  // Every round must have a recording from record.html (js/recordings.js). There is no fallback: if a
+  // recording is missing or damaged, the study does not start, so no participant sees anything else.
+  function recordingProblems() {
+    if (typeof RECORDINGS === 'undefined') return ['js/recordings.js could not be loaded'];
+    const problems = [];
+    for (const d of STIMULI.demos) {
+      const r = RECORDINGS[d.id];
+      if (!r) { problems.push(`no recording for round "${d.id}"`); continue; }
+      const ev = Array.isArray(r.events) ? r.events : [];
+      const last = ev[ev.length - 1];
+      if (!ev.length || !last || last.type !== 'collect') problems.push(`the recording for round "${d.id}" is incomplete (it does not end by collecting a resource)`);
+    }
+    return problems;
+  }
+
   async function main() {
+    const missing = recordingProblems();
+    if (missing.length) {
+      console.error('Study not started:', missing);
+      document.body.innerHTML = '<div class="gw-screen gw-text" style="max-width: 640px; margin: 60px auto;">' +
+        '<h2>This study is temporarily unavailable</h2>' +
+        '<p>Sorry, something went wrong while loading the study. Please return the study on Prolific; you will not be penalized.</p>' +
+        '<p class="gw-meta">For the research team: ' + missing.join('; ') + '.</p></div>';
+      return;
+    }
     window.GridArt.ensureDefs(); // resource artwork must exist before any screen shows a resource
     for (const src of [CONFIG.humanPortrait, CONFIG.humanPortraitSmall]) new Image().src = src; // load Alex's pictures early
+    // ---------- Tab switching and pasting (recorded for every screen) ----------
+    // focus_lost_count: times the study window lost focus (switching tab or window, or clicking
+    // outside the browser); focus_lost_ms: total time away. paste_count / pasted_chars: pastes
+    // into any text box on that screen, and how many characters were pasted.
+    const track = { lost: 0, lostMs: 0, awaySince: null, pastes: 0, pastedChars: 0 };
+    const goAway = () => { if (track.awaySince === null) { track.awaySince = performance.now(); track.lost++; } };
+    const comeBack = () => { if (track.awaySince !== null) { track.lostMs += performance.now() - track.awaySince; track.awaySince = null; } };
+    window.addEventListener('blur', goAway);
+    window.addEventListener('focus', comeBack);
+    document.addEventListener('visibilitychange', () => (document.hidden ? goAway() : comeBack()));
+    document.addEventListener('paste', e => {
+      track.pastes++;
+      track.pastedChars += ((e.clipboardData && e.clipboardData.getData('text')) || '').length;
+    }, true);
+
     const jsPsych = initJsPsych({
       show_progress_bar: true,
       message_progress_bar: '',
+      on_trial_start: () => { track.lost = 0; track.lostMs = 0; track.pastes = 0; track.pastedChars = 0; },
+      on_trial_finish: data => {
+        // Time still away at the end of a screen counts towards this screen; counting continues on the next.
+        if (track.awaySince !== null) { const now = performance.now(); track.lostMs += now - track.awaySince; track.awaySince = now; }
+        Object.assign(data, {
+          focus_lost_count: track.lost, focus_lost_ms: Math.round(track.lostMs),
+          paste_count: track.pastes, pasted_chars: track.pastedChars
+        });
+      },
       on_finish: () => { if (CONFIG.saveMethod === 'jatos' && window.jatos) window.jatos.endStudy(); }
     });
     window.jsPsych = jsPsych;
@@ -29,7 +77,13 @@
       match: null, alexAvatar: CONFIG.neutralAvatar
     };
     let idx = null;
-    if (CONFIG.saveMethod === 'datapipe' && CONFIG.useDataPipeConditions) {
+    // Balanced assignment from the server, except for test links that force a condition.
+    const testLink = urlVar('agent') !== undefined || urlVar('cb') !== undefined;
+    if (CONFIG.assignUrl && !testLink) {
+      try { idx = await getBalancedCondition(pid, N_CELLS); S.assignment = 'balanced'; }
+      catch (e) { idx = null; S.assignment = 'random_fallback'; /* server unavailable: random below */ }
+    }
+    if (idx === null && CONFIG.saveMethod === 'datapipe' && CONFIG.useDataPipeConditions) {
       try { const r = await jsPsychPipe.getCondition(CONFIG.datapipeExperimentId); if (Number.isInteger(r)) { idx = r; S.assignment = 'datapipe'; } } catch (e) { /* fall back to random */ }
     }
     if (idx === null) idx = Math.floor(Math.random() * N_CELLS);
@@ -59,14 +113,22 @@
     function matchHTML() {
       const it = CONFIG.preferenceItems.find(x => x.id === S.match.item);
       const similar = S.agent === 'similar';
-      const how = similar ? `and ${S.name}\u2019s answers were very similar to yours` : `but ${S.name}\u2019s answers were very different from yours`;
-      const feels = similar ? `${S.name} feels the same about ${it.topic}` : `${S.name} feels very differently about ${it.topic}`;
-      return `<p><strong>${S.name} answered the same questions about ${CONFIG.topicsText}, ${how}. For example, ${feels}, ` +
-        `and ${S.name}\u2019s favorite avatar is ${similar ? 'also ' : ''}<span class="gw-inline-avatar">${agentIcon(30, S.alexAvatar, 'Alex\u2019s favorite avatar')}</span>.</strong></p>`;
+      const how = similar
+        ? `Your answers matched on 5 question(s) out of 5.`
+        : `Your answers matched on 1 question(s) out of 5.`;
+      const feels = similar
+        ? `${S.name} feels the same about music, vacations, and food`
+        : `${S.name} feels differently about music, vacations, and food`;
+      const avatar = `<span class="gw-inline-avatar">${agentIcon(30, S.alexAvatar, `${S.name}\u2019s avatar`)}</span>`;
+      const chose = similar
+        ? `${S.name} also chose to play with this avatar: ${avatar}`
+        : `${S.name} chose to play with this avatar: ${avatar}`;
+      return `<p>${S.name} answered the same five questions about ${CONFIG.topicsText}. ${how} ` +
+        `${feels}, and ${chose}.</p>`;
     }
     function reminderHTML() {
       if (!CONFIG.showReminder) return '';
-      const role = 'Expert collector';
+      const role = 'Player level: expert';
       return `<div class="gw-reminder"><img class="gw-reminder-pic" src="${CONFIG.humanPortraitSmall}" alt="" width="46"><div><strong>${S.name}</strong><span>${role}</span></div></div>`;
     }
     const header = (title, sub = '', withReminder = false) =>
@@ -74,17 +136,108 @@
     const textScreen = (title, body) => `<div class="gw-screen gw-text"><h2>${title}</h2>${body}</div>`;
     const radios = (name, options) => `<div class="gw-choices">${options.map(o => `<label><input type="radio" name="${name}" value="${o}" required> ${o}</label>`).join('')}</div>`;
     const lastOf = task => jsPsych.data.get().filter({ task }).last(1).values()[0] || {};
+    // Comprehension checks follow Prolific's policy: the explanation can be re-read on the check page,
+    // participants are told how many attempts they have, and anyone who fails every attempt is asked
+    // to return their submission (they cannot be rejected).
+    const MAX_ATTEMPTS = CONFIG.comprehensionMaxAttempts;
+    const attemptsUsed = task => jsPsych.data.get().filter({ task }).count();
+    const failedCheck = task => !lastOf(task).passed;
+    const attemptLine = task => `<p class="gw-attempts">Attempt ${attemptsUsed(task) + 1} of ${MAX_ATTEMPTS}.</p>`;
+    const reread = html => `<details class="gw-reread"><summary>Read the explanation again</summary>${html}</details>`;
     const retryScreen = (task, label) => ({
       timeline: [{
         type: jsPsychHtmlButtonResponse,
-        stimulus: textScreen('Let\u2019s try that again', '<p>Some of your answers weren\u2019t quite right. Please read the explanation again carefully.</p>'),
+        stimulus: () => {
+          const left = MAX_ATTEMPTS - attemptsUsed(task);
+          return textScreen('Let\u2019s try that again', '<p>Some of your answers weren\u2019t quite right. Please read the explanation again carefully.</p>' +
+            `<p>You have ${left} more attempt${left === 1 ? '' : 's'}.</p>`);
+        },
         choices: [label],
         data: { task: task + '_retry' }
       }],
-      conditional_function: () => !lastOf(task).passed
+      conditional_function: () => failedCheck(task) && attemptsUsed(task) < MAX_ATTEMPTS
     });
 
     const timeline = [];
+
+    // ---------- Saving (used at the end, and when a participant fails the comprehension checks) ----------
+    const filename = `${pid}_${Date.now()}.csv`;
+    function saveNodes() {
+      const nodes = [];
+      if (CONFIG.saveMethod === 'datapipe') {
+        nodes.push({
+          type: jsPsychPipe, action: 'save', experiment_id: CONFIG.datapipeExperimentId,
+          filename, data_string: () => jsPsych.data.get().csv(),
+          wait_message: '<p>Saving your answers. Please don\u2019t close this page.</p>'
+        });
+      } else if (CONFIG.saveMethod === 'jatos') {
+        nodes.push({
+          type: jsPsychCallFunction, async: true,
+          func: done => { window.jatos.submitResultData(jsPsych.data.get().csv()).then(() => done()).catch(() => done()); }
+        });
+      } else if (CONFIG.saveMethod === 'server') {
+        // Save to the university server; the Prolific IDs come from the study link (see save.js).
+        nodes.push({
+          type: jsPsychHtmlButtonResponse,
+          stimulus: '<div class="gw-screen gw-matching"><div class="gw-spinner" role="progressbar" aria-label="Saving"></div>' +
+            '<p class="gw-matching-text">Saving your answers\u2026</p><p>Please don\u2019t close this page.</p></div>',
+          choices: [],
+          data: { task: 'save' },
+          on_load: () => {
+            const meta = {
+              study: CONFIG.studyName, study_version: CONFIG.studyVersion,
+              agent_condition: S.agent, counterbalance: S.cb, participant_id: pid
+            };
+            saveDataWithRetry(jsPsych.data.get().values(), prolificInfo, meta, CONFIG.saveAttempts)
+              .then(res => jsPsych.finishTrial({ save_ok: true, saved_as: res.savedAs }))
+              .catch(err => jsPsych.finishTrial({ save_ok: false, save_error: String((err && err.message) || err) }));
+          }
+        });
+        // If saving failed after all attempts, offer a downloaded copy so no data are lost.
+        nodes.push({
+          timeline: [{
+            type: jsPsychHtmlButtonResponse,
+            stimulus: textScreen('We couldn\u2019t save your answers',
+              '<p>Something went wrong while saving your answers. Please download a copy using the button below, ' +
+              'then send it to the researchers through Prolific\u2019s messaging system. You will still be able to complete the study.</p>'),
+            choices: ['Download my answers'],
+            data: { task: 'save_failed' },
+            on_finish: () => jsPsych.data.get().localSave('csv', filename)
+          }],
+          conditional_function: () => lastOf('save').save_ok === false
+        });
+      } else if (CONFIG.saveMethod === 'local') {
+        nodes.push({ type: jsPsychCallFunction, func: () => jsPsych.data.get().localSave('csv', filename) });
+      } // 'none': nothing is saved (preview copies for collaborators)
+      return nodes;
+    }
+
+    // ---------- Failing a comprehension check after the last attempt ----------
+    // Data are saved and marked, then participants are sent back to Prolific through the
+    // "request a return" completion path (or, without that link, asked to return the study).
+    const failedMessage = () => textScreen('Thank you for your time',
+      '<p>Unfortunately, some answers to the check questions were still not correct after ' + MAX_ATTEMPTS + ' attempts, ' +
+      'so you can\u2019t continue with this study.</p>' +
+      (CONFIG.prolificReturnUrl
+        ? '<p>Please click the button below to go back to Prolific, where you will be asked to return your submission.</p>'
+        : '<p>Please return your submission on Prolific by clicking \u2018Cancel participation\u2019. You can now close this page.</p>'));
+    function comprehensionFailed(task) {
+      return {
+        timeline: [
+          { type: jsPsychCallFunction, func: () => jsPsych.data.addProperties({ comprehension_failed: task }) },
+          ...saveNodes(),
+          {
+            type: jsPsychHtmlButtonResponse,
+            stimulus: () => failedMessage(),
+            choices: ['Back to Prolific'],
+            data: { task: 'comprehension_failed', failed_check: task },
+            on_load: () => { if (!CONFIG.prolificReturnUrl) jsPsych.abortExperiment(failedMessage()); },
+            on_finish: () => { if (CONFIG.prolificReturnUrl) window.location.href = CONFIG.prolificReturnUrl; }
+          }
+        ],
+        conditional_function: () => failedCheck(task)
+      };
+    }
 
     // ---------- Consent ----------
     timeline.push({
@@ -117,7 +270,7 @@
         <p>The purpose of this research is to understand how people are able to learn from their interactions with objects, events, and other people. We are currently studying individuals' learning and development in multiple domains, including causal, visual, language and memory.</p>
 
         <h4>How long will the research last and what will I need to do?</h4>
-        <p>This session will take approximately 20 minutes (including filling out this consent form).</p>
+        <p>This session will take approximately 10 minutes (including filling out this consent form).</p>
         <p>During the self-guided session, you may be presented with objects or images or watch a video clip and answer questions. There are no "right or wrong" responses to any of these questions—we simply want to find out how people approach objects and situations. Please note that you are NOT being evaluated academically or psychologically, we are simply conducting basic research.</p>
 
         <h4>Is there any way being in this study could be bad for me?</h4>
@@ -180,7 +333,8 @@
     const avatarOrder = jsPsych.randomization.shuffle(CONFIG.avatarOptions.slice());
     timeline.push({
       type: jsPsychSurveyHtmlForm,
-      preamble: textScreen('A few questions about you', '<p>Before starting the task, please answer a few questions about yourself.</p>'),
+      preamble: textScreen('A few questions about you', '<p>Before starting the task, please answer a few questions about yourself.</p>' +
+        '<p>These questions will be used to match you with another participant, so please be as honest as you can.</p>'),
       html: prefItems.map(it => `<fieldset class="gw-pref"><legend>${it.question}</legend>
           <select name="${it.id}_choice" required><option value="" selected disabled>Choose one</option>${it.options.map(o => `<option>${o}</option>`).join('')}</select>
           <p class="gw-pref-imp">${it.importance}</p>
@@ -211,20 +365,23 @@
     });
 
     // ---------- Task explanation and check (repeats until correct) ----------
+    const taskExplanation = () =>
+      '<p>In this study, you will be paired with another person who has taken part in an earlier version of this study and played the Gridworld many times.</p>' +
+      '<p>First, you will watch screen recordings of them playing. Afterwards, you will play the Gridworld yourself.</p>' +
+      '<p><strong>About the Gridworld</strong></p>' +
+      '<p>In the Gridworld, there are four kinds of resources: grain, ore, wood and water. Each kind is worth a different number of points.</p>' +
+      lineup() +
+      '<p>Only one resource can be collected in each round, and every step costs a point. The goal is to collect the most valuable resource while spending as few points as possible on steps.</p>';
     const taskScreen = {
       type: jsPsychHtmlButtonResponse,
-      stimulus: () => textScreen('The Gridworld',
-        '<p>In this task, you will be exploring the Gridworld.</p>' +
-        '<p>In the Gridworld, there are four kinds of resources: grain, ore, wood and water. Each kind is worth a different number of points.</p>' +
-        lineup() +
-        '<p>Only one resource can be collected in each round, and every step costs a point. The goal is to collect the most valuable resource while spending as few points as possible on steps.</p>'),
+      stimulus: () => textScreen('What you will be doing in this study', taskExplanation()),
       choices: ['Continue'],
       data: { task: 'task_explanation' }
     };
     const RESOURCE_PATTERNS = { grain: /grain|wheat/, ore: /\bores?\b|mineral|rock|metal|iron/, wood: /wood|log|timber/, water: /water/ };
     const taskCheck = {
       type: jsPsychSurveyHtmlForm,
-      preamble: '<div class="gw-screen gw-text"><h2>Quick check</h2><p>Please answer these questions about the task.</p></div>',
+      preamble: () => `<div class="gw-screen gw-text"><h2>Quick check</h2><p>Please answer these questions about the task.</p>${attemptLine('task_check')}${reread(taskExplanation())}</div>`,
       html: `<fieldset class="gw-pref"><legend>How many kinds of resources are there in the Gridworld?</legend>${radios('resource_count', [2, 3, 4, 5, 6])}</fieldset>
         <label class="gw-q" for="gw-resource-names">What are they? Please type their names, separated by commas.</label>
         <input type="text" id="gw-resource-names" name="resource_names" class="gw-text-input" required autocomplete="off">
@@ -243,64 +400,66 @@
     };
     timeline.push({
       timeline: [taskScreen, taskCheck, retryScreen('task_check', 'Read the explanation again')],
-      loop_function: () => !lastOf('task_check').passed
+      loop_function: () => failedCheck('task_check') && attemptsUsed('task_check') < MAX_ATTEMPTS
     });
+    timeline.push(comprehensionFailed('task_check'));
 
-    // ---------- Matching with an expert (makes the human demonstrator believable) ----------
+    // ---------- Matching with an expert ----------
     const matchingMs = Math.round(jsPsych.randomization.randomInt(...CONFIG.matchingMs) / S.speed);
     timeline.push({
       type: jsPsychHtmlButtonResponse,
       stimulus: '<div class="gw-screen gw-matching"><div class="gw-spinner" role="progressbar" aria-label="Loading"></div>' +
-        '<p class="gw-matching-text">Matching you with an expert on the Gridworld\u2026</p></div>',
+        '<p class="gw-matching-text">Matching you with a previous participant\u2026</p></div>',
       choices: [],
       trial_duration: matchingMs,
       data: { task: 'matching', matching_ms: matchingMs }
     });
-    timeline.push({
-      type: jsPsychHtmlButtonResponse,
-      stimulus: '<div class="gw-screen gw-matching"><div class="gw-match-found" aria-hidden="true">\u2713</div>' +
-        '<p class="gw-matching-text">Match found</p></div>',
-      choices: [],
-      trial_duration: Math.round(CONFIG.matchFoundMs / S.speed),
-      data: { task: 'match_found' }
-    });
 
     // ---------- Demonstrator profile (similarity manipulation) ----------
-    // Shown on the "Meet Alex" screen and again just before the rounds (`reminder`).
+    // Shown on the "Meet Alex" screen.
+    const aboutAlex1 = () =>
+      `<p>${S.name} participated in an earlier version of this study, where players played the Gridworld game many times.</p>`;
+    const aboutAlex2 = () =>
+      `<p>In the earlier version of the study, to score points, players had to figure out each resource\u2019s value. ` +
+      `${S.name} scored perfectly on the resource-value test and collected the most valuable resource available in each of the last 20 rounds. ` +
+      `You\u2019ll see recordings from some of those rounds.</p>`;
     function alexProfile(reminder) {
       return `<div class="gw-profile">` +
         `<img class="gw-portrait" src="${CONFIG.humanPortrait}" alt="" width="120">` +
         (reminder ? `<h3 class="gw-card-title">About ${S.name}</h3>` : '') +
-        `<p>${S.name} has done this task many times and over the last 20 trials has collected the maximum number of points every time. 
-        By now ${S.name} is an expert on the Gridworld and knows exactly what each kind of resource is worth.</p>` +
-        (isSimCondition() ? matchHTML() : '');
+        aboutAlex1() +
+        (isSimCondition() ? matchHTML() : '') +
+        aboutAlex2() +
+        `</div>`;
     }
     timeline.push({
       type: jsPsychHtmlButtonResponse,
-      stimulus: () => textScreen(`Meet ${S.name} (name changed for anonymity)`, alexProfile(false)),
+      stimulus: () => textScreen(`You will be learning from ${S.name} (Not the participant's real name)`, alexProfile(false)),
       choices: ['Continue'],
       data: { task: 'demonstrator_intro' }
     });
 
     // ---------- Learning from the demonstrator, and check (repeats until correct) ----------
+    const learnExplanation = () =>
+      `<p>Next, you\u2019ll watch screen recordings of ${S.name} collecting resources in the Gridworld over several rounds. You can learn which resource is the most valuable by watching how ${S.name} collects them. Remember, ${S.name} always collects the most valuable resource available, in as few steps as possible.</p>` +
+      `<p>${S.name} can only see in the direction ${S.name} is facing, and not through the brick walls. Areas ${S.name} hasn\u2019t seen yet are covered in grey fog, and the fog clears as ${S.name} explores, so you see the Gridworld as ${S.name} discovers it.</p>` +
+      `<p><strong>After watching ${S.name}, you\u2019ll collect resources yourself.</strong></p>`;
     const learnScreen = {
       type: jsPsychHtmlButtonResponse,
-      stimulus: () => textScreen(`Learning from ${S.name}`,
-        `<p>Next, you\u2019ll watch ${S.name} collect resources in the Gridworld over several rounds. You can learn which resource is the most valuable by watching how ${S.name} collects them. Remember, ${S.name} always collects the most valuable resource available, in as few steps as possible.</p>` +
-        `<p>${S.name} can only see what isn\u2019t blocked by the brick walls. Areas ${S.name} hasn\u2019t seen yet are covered in grey fog, and the fog clears as ${S.name} explores, so you see the Gridworld as ${S.name} discovers it.</p>` +
-        `<p><strong>After watching ${S.name}, you\u2019ll collect resources yourself.</strong></p>`),
+      stimulus: () => textScreen(`Learning from ${S.name}`, learnExplanation()),
       choices: ['Continue'],
       data: { task: 'learning_explanation' }
     };
     const alexQs = () => [
-      { name: 'knows', prompt: `What does ${S.name} know?`, options: ['What each kind of resource is worth', 'Where all the resources are', 'Both of these', 'Neither of these'], correct: 'What each kind of resource is worth' },
-      { name: 'does', prompt: `What does ${S.name} always do?`, options: ['Collects the most valuable resource available, in as few steps as possible', 'Collects the closest resource', 'Collects resources at random'], correct: 'Collects the most valuable resource available, in as few steps as possible' },
-      { name: 'fog', prompt: 'What does the grey fog show?', options: [`Areas ${S.name} hasn\u2019t seen yet`, 'Walls no one can walk through', 'Areas with no resources'], correct: `Areas ${S.name} hasn\u2019t seen yet` }
+      { name: 'knows', prompt: `What does ${S.name} know?`, options: ['Where all the resources are', 'What each kind of resource is worth', 'Both of these', 'Neither of these'], correct: 'What each kind of resource is worth' },
+      { name: 'does', prompt: `What does ${S.name} always do?`, options: ['Collects the closest resource', 'Collects resources at random', 'Collects the most valuable resource available, in as few steps as possible'], correct: 'Collects the most valuable resource available, in as few steps as possible' },
+      { name: 'fog', prompt: 'What does the grey fog show?', options: ['Walls no one can walk through', `Areas ${S.name} hasn\u2019t seen yet`, 'Areas with no resources'], correct: `Areas ${S.name} hasn\u2019t seen yet` }
     ];
     const alexCheck = {
       type: jsPsychSurveyMultiChoice,
-      preamble: '<div class="gw-screen gw-text"><h2>Quick check</h2><p>Please answer these questions.</p></div>',
-      questions: () => alexQs().map(q => ({ name: q.name, prompt: q.prompt, options: jsPsych.randomization.shuffle(q.options.slice()), required: true })),
+      // The re-read panel includes Alex's description (what Alex knows) as well as the learning explanation.
+      preamble: () => `<div class="gw-screen gw-text"><h2>Quick check</h2><p>Please answer these questions.</p>${attemptLine('demonstrator_check')}${reread(aboutAlex1() + aboutAlex2() + learnExplanation())}</div>`,
+      questions: () => alexQs().map(q => ({ name: q.name, prompt: q.prompt, options: q.options, required: true })),
       data: { task: 'demonstrator_check' },
       on_finish: data => {
         const qs = alexQs();
@@ -310,24 +469,30 @@
     };
     timeline.push({
       timeline: [learnScreen, alexCheck, retryScreen('demonstrator_check', 'Read the explanation again')],
-      loop_function: () => !lastOf('demonstrator_check').passed
+      loop_function: () => failedCheck('demonstrator_check') && attemptsUsed('demonstrator_check') < MAX_ATTEMPTS
     });
+    timeline.push(comprehensionFailed('demonstrator_check'));
 
     // ---------- Reminder about Alex, just before the rounds ----------
     timeline.push({
       type: jsPsychHtmlButtonResponse,
-      stimulus: () => textScreen(`Now you will watch ${S.name} navigate the Gridworld`, alexProfile(true)),
+      stimulus: () => textScreen(`Now you will watch the recordings of ${S.name} navigating the Gridworld and collecting resources`,
+        `<p>After observing 6 rounds, you\u2019ll collect resources yourself.</p>`
+      ),
       choices: ['Start watching'],
       data: { task: 'demonstrator_reminder' }
     });
 
     // ---------- Demonstrations ----------
     const demos = STIMULI.demos;
+    // Alex's rounds are always the recordings made with record.html (checked at the start).
+    const recordingFor = id => RECORDINGS[id];
     jsPsych.data.addProperties({ demo_order: demos.map(d => d.id).join('|') });
     demos.forEach((stim, i) => {
       timeline.push({
         type: jsPsychGridDemo,
         stimulus: stim,
+        recording: recordingFor(stim.id),
         counterbalance: () => S.cb,
         avatar: () => S.alexAvatar,
         speed: S.speed,
@@ -358,7 +523,7 @@
         step_cost: CONFIG.stepCost,
         header_html: header('Your turn', `Round ${i + 1} of ${tests.length}`),
         instruction: 'Click the resource you want to collect.',
-        button_label: i < tests.length - 1 ? 'Next round' : 'Finish',
+        button_label: i < tests.length - 1 ? 'Next round' : 'Continue',
         data: { task: 'test', test_index: i + 1 }
       });
     });
@@ -370,18 +535,13 @@
       preamble: '<h2>How valuable is each resource?</h2><p>Click the resources in order, from the most valuable to the least valuable.</p>',
       data: { task: 'ranking' }
     });
-    timeline.push({
-      type: jsPsychSurveyText,
-      preamble: '<div class="gw-screen gw-text"><h2>Your strategy</h2></div>',
-      questions: [{ name: 'rule', prompt: 'In your own words, how did you determine which resource was the most valuable?', rows: 4, required: true }],
-      data: { task: 'rule_report' }
-    });
     (STIMULI.probes || []).forEach(p => {
       timeline.push({
         type: jsPsychGridProbe,
         probe_id: p.id,
         stimulus: demos.find(d => d.id === p.demo),
         agent_cell: p.agentCell, heading: p.heading,
+        recording: recordingFor(p.demo),
         counterbalance: () => S.cb,
         avatar: () => S.alexAvatar,
         header_html: () => header(`Thinking about ${S.name}`, 'A moment from one of the rounds'),
@@ -390,16 +550,85 @@
         data: { task: 'probe' }
       });
     });
-    const scale = (lo, hi) => ['1<br>' + lo, '2', '3', '4', '5', '6', '7<br>' + hi];
+    // ---------- Questions about how participants engaged with the study (all required) ----------
+    // Three pages, so the open question is answered first and unprompted (and any paste on that page
+    // comes from it: see paste_count), and the belief questions come after the ratings.
+    const likert = (name, prompt, lo, hi) => `<fieldset class="gw-pref"><legend>${prompt}</legend>
+        <div class="gw-scale">${[1, 2, 3, 4, 5, 6, 7].map(v => `<label><input type="radio" name="${name}" value="${v}" required><span>${v}</span></label>`).join('')}</div>
+        <div class="gw-scale-ends"><span>${lo}</span><span>${hi}</span></div></fieldset>`;
+    const choiceList = (name, prompt, options) => `<fieldset class="gw-pref"><legend>${prompt}</legend>
+        <div class="gw-choices gw-choices-col">${options.map(([value, label]) => `<label><input type="radio" name="${name}" value="${value}" required> ${label}</label>`).join('')}</div>`;
+
+    // Page 1: open question
     timeline.push({
-      type: jsPsychSurveyLikert,
-      preamble: () => `<div class="gw-screen gw-text"><h2>About ${S.name}</h2></div>`,
-      questions: () => [
-        { name: 'ease', prompt: `How easy was it to understand the reasons behind ${S.name}\u2019s actions?`, labels: scale('Very hard', 'Very easy'), required: true },
-        { name: 'competence', prompt: `Evaluate ${S.name}\u2019s expertise in collecting valuable resources.`, labels: scale('Very low', 'Very high'), required: true },
-        { name: 'similarity', prompt: `How similar to you does ${S.name} seem?`, labels: scale('Not at all similar', 'Extremely similar'), required: true }
-      ],
-      data: { task: 'ratings' }
+      type: jsPsychSurveyHtmlForm,
+      preamble: textScreen('A few more questions',
+        '<p>Please answer a few questions to help us better understand how you engaged with the study. ' +
+        'Your answers won\u2019t affect your payment so please be as honest as you can.</p>'),
+      html: `<label class="gw-q" for="gw-q-confusing">Did anything about the study seem confusing, strange, or otherwise in need of change?</label>
+        <textarea id="gw-q-confusing" name="q_confusing" rows="4" required></textarea>`,
+      button_label: 'Continue',
+      data: { task: 'engagement_open' },
+      on_finish: data => { data.q_confusing = data.response.q_confusing; }
+    });
+
+    // Page 2: ratings and what participants were trying to do
+    timeline.push({
+      type: jsPsychSurveyHtmlForm,
+      preamble: () => textScreen(`About ${S.name}`, ''),
+      html: () =>
+        likert('q_common', `How much do you feel you might have in common with ${S.name}?`, '1 Very little', '7 Very much') +
+        likert('q_like', `How much do you think you might like ${S.name}?`, '1 Very little', '7 Very much') +
+        likert('q_imagine', `How easy was it to imagine what ${S.name} was thinking?`, '1 Very easy', '7 Very hard') +
+        likert('q_human', 'While watching the recordings, how much did it feel like you were watching a real person play?', '1 Not at all', '7 Very much') +
+        choiceList('q_aim', `While watching ${S.name}, what were you mainly trying to do?`, [
+          ['remember', `Remember which resources ${S.name} picked`],
+          ['why', `Work out why ${S.name} did what ${S.name} did`],
+          ['watch', 'Just watch'],
+          ['other', 'Other (please explain)']]) +
+        `<div class="gw-other" hidden><label class="gw-q" for="gw-q-aim-other">Please explain:</label>
+          <input type="text" id="gw-q-aim-other" name="q_aim_other" class="gw-text-input" autocomplete="off"></div></fieldset>`,
+      button_label: 'Continue',
+      data: { task: 'engagement_ratings' },
+      on_load: () => {
+        // The explanation box appears, and becomes required, only when "Other" is chosen.
+        const box = document.querySelector('.gw-other'), input = document.getElementById('gw-q-aim-other');
+        document.querySelectorAll('input[name="q_aim"]').forEach(r => r.addEventListener('change', () => {
+          const other = document.querySelector('input[name="q_aim"]:checked').value === 'other';
+          box.hidden = !other; input.required = other;
+        }));
+      },
+      on_finish: data => {
+        const r = data.response;
+        Object.assign(data, {
+          q_common: Number(r.q_common), q_like: Number(r.q_like),
+          q_imagine_hard: Number(r.q_imagine),   // 1 = very easy ... 7 = very hard
+          q_human: Number(r.q_human),
+          q_aim: r.q_aim, q_aim_other: r.q_aim === 'other' ? r.q_aim_other : null
+        });
+      }
+    });
+
+    // Page 3: memory of the similarity information, and belief in the cover story
+    timeline.push({
+      type: jsPsychSurveyHtmlForm,
+      preamble: () => textScreen(`About ${S.name}`, ''),
+      html: () =>
+        choiceList('q_answers', `Compared with yours, ${S.name}\u2019s answers to the \u2018about you\u2019 questions were\u2026`, [
+          ['similar', 'Very similar'], ['different', 'Very different'],
+          ['dont_remember', 'I don\u2019t remember'], ['not_mentioned', 'This wasn\u2019t mentioned']]) + '</fieldset>' +
+        choiceList('q_real', `Do you think ${S.name} was a real person who had done this task before?`, [
+          ['yes', 'Yes'], ['unsure', 'Unsure'], ['no', 'No']]) +
+        `<label class="gw-q" for="gw-q-real-explain">Please explain your answer.</label>
+          <textarea id="gw-q-real-explain" name="q_real_explain" rows="3" required></textarea></fieldset>`,
+      button_label: 'Continue',
+      data: { task: 'engagement_beliefs' },
+      on_finish: data => {
+        const r = data.response;
+        Object.assign(data, {
+          q_answers_memory: r.q_answers, q_real: r.q_real, q_real_explain: r.q_real_explain
+        });
+      }
     });
 
     // ---------- Points earned (shown last, after all the questions) ----------
@@ -414,21 +643,7 @@
     });
 
     // ---------- Save data ----------
-    const filename = `${pid}_${Date.now()}.csv`;
-    if (CONFIG.saveMethod === 'datapipe') {
-      timeline.push({
-        type: jsPsychPipe, action: 'save', experiment_id: CONFIG.datapipeExperimentId,
-        filename, data_string: () => jsPsych.data.get().csv(),
-        wait_message: '<p>Saving your answers. Please don\u2019t close this page.</p>'
-      });
-    } else if (CONFIG.saveMethod === 'jatos') {
-      timeline.push({
-        type: jsPsychCallFunction, async: true,
-        func: done => { window.jatos.submitResultData(jsPsych.data.get().csv()).then(() => done()).catch(() => done()); }
-      });
-    } else if (CONFIG.saveMethod === 'local') {
-      timeline.push({ type: jsPsychCallFunction, func: () => jsPsych.data.get().localSave('csv', filename) });
-    } // 'none': nothing is saved (preview copies for collaborators)
+    timeline.push(...saveNodes());
 
     // ---------- Final screen ----------
     timeline.push({
