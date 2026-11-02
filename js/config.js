@@ -80,7 +80,7 @@ const CONFIG = {
     },
     {
       id: 'values',
-      question: 'Which of these feels especially important to you?',
+      question: 'What feels especially important to you?',
       topic: 'what matters most in life',
       verb: 'is',
       options: [
@@ -109,7 +109,7 @@ const CONFIG = {
   avatarQuestion: 'Which of the following avatars would you like to play with in this game?',
   avatarOptions: ['blue', 'burgundy', 'green'],
   // Used on the "Meet Alex" screen: "Alex answered the same questions about ..."
-  topicsText: 'what matters most to them, their personality, how they spend their free time, where they grew up, and avatars',
+  topicsText: 'how they spend their free time, their personality, what matters most to them, where they grew up, and avatars',
   // Picture of Alex on the "Meet Alex" and reminder screens.
   humanPortrait: 'img/alex-silhouette.png',
   // Smaller version with bolder lines, for the card above each of Alex's rounds.
