@@ -2,7 +2,7 @@
  * Study configuration. Most changes you will need to make before launching are in this file.
  */
 const CONFIG = {
-  studyVersion: '0.4.0',
+  studyVersion: '0.5.0',
 
   // ---- Data saving ----
   // 'server'   : saves to the university server through api/save.php (the live study on Prolific).
@@ -32,6 +32,8 @@ const CONFIG = {
   // ---- Conditions ----
   agentConditions: ['similar', 'dissimilar', 'control'],
   demonstratorName: 'Alex',
+  // The demonstrator's initials: each participant sees one of these, drawn at random.
+  demonstratorNames: ['S.B.', 'T.L.', 'H.G.', 'N.I.', 'D.L.'],
 
   // Show a short reminder of the demonstrator description above each demonstration.
   showReminder: true,
@@ -44,37 +46,70 @@ const CONFIG = {
   testTiming: { start: 0, look: 0, turn: 220, step: 240, collect: 400 },
   fieldOfView: 120,
   // ---- "About you" questions, asked before the task ----
-  // Used for the similarity manipulation. On the "Meet Alex" screen, the topic the participant
-  // rated most extremely (furthest from the midpoint; ties at random) is named: "Alex feels the
-  // same about ..." (similar) or "Alex feels very differently about ..." (dissimilar). Alex's
-  // favorite avatar is the participant's choice (similar) or one of the other two (dissimilar),
-  // and Alex appears with that avatar in every round. `topic` is the word used in the sentence.
+  // Used for the similarity manipulation (similar and dissimilar conditions), on the "Meet Alex" screen.
+  // Alex's avatar is the participant's choice (similar) or one of the other two (dissimilar), and Alex
+  // appears with that avatar in every round.
   preferenceItems: [
     {
-      id: 'music', question: 'What kind of music do you like most?', importance: 'How important is music to you?',
-      topic: 'music', verb: 'is',
-      options: ['Pop', 'Rock', 'Hip-hop', 'Classical', 'Jazz', 'Electronic', 'Country', 'Folk']
+      id: 'freetime',
+      question: 'What sounds like your ideal free evening?',
+      topic: 'free time',
+      verb: 'is',
+      options: [
+        'Spending time with people I enjoy',
+        'Getting cozy with something to watch, read, or listen to',
+        'Making or creating something',
+        'Being active',
+        'Getting into a game',
+        'Having quiet time to myself'
+      ]
     },
     {
-      id: 'movie', question: 'What kind of movie do you enjoy most?', importance: 'How important are movies to you?',
-      topic: 'movies', verb: 'are',
-      options: ['Comedy', 'Drama', 'Action', 'Horror', 'Science fiction', 'Documentary', 'Romance', 'Animation']
+      id: 'personality',
+      question: 'How would people who know you well describe you?',
+      topic: 'personality',
+      verb: 'is',
+      options: [
+        'Funny',
+        'Caring',
+        'Easygoing',
+        'Adventurous',
+        'Dependable',
+        'Independent'
+      ]
     },
     {
-      id: 'vacation', question: 'What kind of vacation do you enjoy most?', importance: 'How important are vacations to you?',
-      topic: 'vacations', verb: 'are',
-      options: ['Beach', 'City', 'Mountains', 'Countryside', 'Cruise', 'Camping']
+      id: 'values',
+      question: 'Which of these feels especially important to you?',
+      topic: 'what matters most in life',
+      verb: 'is',
+      options: [
+        'Close relationships',
+        'Freedom to do things my own way',
+        'Security and stability',
+        'Working toward personal goals',
+        'New experiences',
+        'Making a difference for others'
+      ]
     },
     {
-      id: 'food', question: 'What kind of food do you enjoy most?', importance: 'How important is food to you?',
-      topic: 'food', verb: 'is',
-      options: ['Italian', 'Chinese', 'Indian', 'Mexican', 'Japanese', 'Middle Eastern', 'Thai', 'French']
+      id: 'hometown',
+      question: 'Which best describes where you grew up?',
+      topic: 'where they grew up',
+      verb: 'is',
+      options: [
+        'A big city',
+        'A smaller city or a town',
+        'A suburb',
+        'The countryside',
+        'A mix of places'
+      ]
     }
   ],
   avatarQuestion: 'Which of the following avatars would you like to play with in this game?',
   avatarOptions: ['blue', 'burgundy', 'green'],
   // Used on the "Meet Alex" screen: "Alex answered the same questions about ..."
-  topicsText: 'music, vacations, movies, food and avatars',
+  topicsText: 'what matters most to them, their personality, how they spend their free time, where they grew up, and avatars',
   // Picture of Alex on the "Meet Alex" and reminder screens.
   humanPortrait: 'img/alex-silhouette.png',
   // Smaller version with bolder lines, for the card above each of Alex's rounds.

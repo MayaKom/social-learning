@@ -71,7 +71,8 @@
     // ---------- Participant and condition assignment ----------
     const pid = urlVar('PROLIFIC_PID') || jsPsych.randomization.randomID(12);
     const S = {
-      name: CONFIG.demonstratorName,
+      // The demonstrator's initials, drawn at random for each participant (saved as demonstrator_name).
+      name: jsPsych.randomization.sampleWithoutReplacement(CONFIG.demonstratorNames || [CONFIG.demonstratorName], 1)[0],
       speed: Number(urlVar('speed')) || 1,
       agent: null, cb: null, conditionIndex: null, assignment: 'random',
       match: null, alexAvatar: CONFIG.neutralAvatar
@@ -98,7 +99,7 @@
     const valueMap = Object.fromEntries(G.ROLES.map(r => [G.ROLE_NAMES[r], G.itemName(G.itemFor(r, S.cb))]));
     jsPsych.data.addProperties({
       participant_id: pid, study_id: urlVar('STUDY_ID') || null, session_id: urlVar('SESSION_ID') || null,
-      study_version: CONFIG.studyVersion, agent_condition: S.agent,
+      study_version: CONFIG.studyVersion, agent_condition: S.agent, demonstrator_name: S.name,
       counterbalance: S.cb, condition_index: S.conditionIndex, assignment: S.assignment,
       item_best: valueMap.best, item_second: valueMap.second, item_third: valueMap.third, item_worst: valueMap.worst
     });
@@ -111,20 +112,19 @@
 
     // Similarity manipulation, shown on the "Meet Alex" screen (similar and dissimilar conditions).
     function matchHTML() {
-      const it = CONFIG.preferenceItems.find(x => x.id === S.match.item);
       const similar = S.agent === 'similar';
       const how = similar
         ? `Your answers matched on 5 question(s) out of 5.`
         : `Your answers matched on 1 question(s) out of 5.`;
-      const feels = similar
-        ? `${S.name} feels the same about music, vacations, and food`
-        : `${S.name} feels differently about music, vacations, and food`;
+      // Similar: all the questions were answered the same. Dissimilar: all but one were answered differently.
+      const items = CONFIG.preferenceItems;
+      const listed = similar ? items : items.filter(x => x.id !== 'personality');
+      const list = `<ul style="display: inline-block; text-align: left; margin: 0 0 10px;">` +
+        listed.map(x => `<li>${x.question}</li>`).join('') + `</ul>`;
       const avatar = `<span class="gw-inline-avatar">${agentIcon(30, S.alexAvatar, `${S.name}\u2019s avatar`)}</span>`;
-      const chose = similar
-        ? `${S.name} also chose to play with this avatar: ${avatar}`
-        : `${S.name} chose to play with this avatar: ${avatar}`;
-      return `<p>${S.name} answered the same five questions about ${CONFIG.topicsText}. ${how} ` +
-        `${feels}, and ${chose}.</p>`;
+      return `<p>${S.name} answered the same five questions about ${CONFIG.topicsText}. ${how}</p>` +
+        `<p>${similar ? 'Your answers were the same on these questions:' : 'Your answers were different on these questions:'}</p>` + list +
+        `<p>${S.name} ${similar ? 'also ' : ''}chose to play with this avatar: ${avatar}.</p>`;
     }
     function reminderHTML() {
       if (!CONFIG.showReminder) return '';
@@ -336,37 +336,24 @@
       preamble: textScreen('A few questions about you', '<p>Before starting the task, please answer a few questions about yourself.</p>' +
         '<p>These questions will be used to match you with another participant, so please be as honest as you can.</p>'),
       html: prefItems.map(it => `<fieldset class="gw-pref"><legend>${it.question}</legend>
-          <select name="${it.id}_choice" required><option value="" selected disabled>Choose one</option>${it.options.map(o => `<option>${o}</option>`).join('')}</select>
-          <p class="gw-pref-imp">${it.importance}</p>
-          <div class="gw-scale">${[1, 2, 3, 4, 5, 6, 7].map(v => `<label><input type="radio" name="${it.id}_importance" value="${v}" required><span>${v}</span></label>`).join('')}</div>
-          <div class="gw-scale-ends"><span>Not at all important</span><span>Extremely important</span></div></fieldset>`).join('') +
+        <div class="gw-choices gw-choices-col">${it.options.map(o => `<label><input type="radio" name="${it.id}_choice" value="${o}" required> ${o}</label>`).join('')}</div></fieldset>`).join('') +
         `<fieldset class="gw-pref"><legend>${CONFIG.avatarQuestion}</legend><div class="gw-avatar-choices">${avatarOrder.map(a =>
           `<label><input type="radio" name="avatar_choice" value="${a}" required aria-label="Avatar ${avatarOrder.indexOf(a) + 1}">${agentIcon(56, a)}</label>`).join('')}</div></fieldset>`,
       button_label: 'Continue',
       data: { task: 'preferences', avatar_order: avatarOrder.join('|') },
       on_finish: data => {
         const r = data.response;
-        // The topic with the most extreme importance rating (furthest from the midpoint); ties,
-        // including all four rated the same, are broken at random.
-        const ext = it => Math.abs(Number(r[it.id + '_importance']) - 4);
-        const maxExt = Math.max(...prefItems.map(ext));
-        const it = jsPsych.randomization.sampleWithoutReplacement(prefItems.filter(x => ext(x) === maxExt), 1)[0];
-        const rating = Number(r[it.id + '_importance']);
         const pAvatar = r.avatar_choice;
-        S.match = { item: it.id, rating };
         if (S.agent === 'similar') S.alexAvatar = pAvatar;
         else if (S.agent === 'dissimilar') S.alexAvatar = jsPsych.randomization.sampleWithoutReplacement(CONFIG.avatarOptions.filter(a => a !== pAvatar), 1)[0];
-        Object.assign(data, {
-          participant_avatar: pAvatar, alex_avatar: S.alexAvatar,
-          match_item: isSimCondition() ? it.id : null, match_participant_rating: isSimCondition() ? rating : null
-        });
+        Object.assign(data, { participant_avatar: pAvatar, alex_avatar: S.alexAvatar });
         jsPsych.data.addProperties({ participant_avatar: pAvatar, alex_avatar: S.alexAvatar });
       }
     });
 
     // ---------- Task explanation and check (repeats until correct) ----------
     const taskExplanation = () =>
-      '<p>In this study, you will be paired with another person who has taken part in an earlier version of this study and played the Gridworld many times.</p>' +
+      '<p>In this study, you will be paired with another person who has taken part in an earlier version of this study and learned how to play the Gridworld.</p>' +
       '<p>First, you will watch screen recordings of them playing. Afterwards, you will play the Gridworld yourself.</p>' +
       '<p><strong>About the Gridworld</strong></p>' +
       '<p>In the Gridworld, there are four kinds of resources: grain, ore, wood and water. Each kind is worth a different number of points.</p>' +
@@ -418,30 +405,26 @@
     // ---------- Demonstrator profile (similarity manipulation) ----------
     // Shown on the "Meet Alex" screen.
     const aboutAlex1 = () =>
-      `<p>${S.name} participated in an earlier version of this study, where players played the Gridworld game many times.</p>`;
-    const aboutAlex2 = () =>
-      `<p>In the earlier version of the study, to score points, players had to figure out each resource\u2019s value. ` +
-      `${S.name} scored perfectly on the resource-value test and collected the most valuable resource available in each of the last 20 rounds. ` +
-      `You\u2019ll see recordings from some of those rounds.</p>`;
+      `<p>${S.name} participated in an earlier version of this study, where players played the Gridworld to figure out each resource\u2019s value.</p>`;
     function alexProfile(reminder) {
       return `<div class="gw-profile">` +
         `<img class="gw-portrait" src="${CONFIG.humanPortrait}" alt="" width="120">` +
         (reminder ? `<h3 class="gw-card-title">About ${S.name}</h3>` : '') +
         aboutAlex1() +
         (isSimCondition() ? matchHTML() : '') +
-        aboutAlex2() +
         `</div>`;
     }
     timeline.push({
       type: jsPsychHtmlButtonResponse,
-      stimulus: () => textScreen(`You will be learning from ${S.name} (Not the participant's real name)`, alexProfile(false)),
+      stimulus: () => textScreen(`You will be learning from a previous Prolific participant \u2013 ${S.name}`, alexProfile(false)),
       choices: ['Continue'],
       data: { task: 'demonstrator_intro' }
     });
 
     // ---------- Learning from the demonstrator, and check (repeats until correct) ----------
     const learnExplanation = () =>
-      `<p>Next, you\u2019ll watch screen recordings of ${S.name} collecting resources in the Gridworld over several rounds. You can learn which resource is the most valuable by watching how ${S.name} collects them. Remember, ${S.name} always collects the most valuable resource available, in as few steps as possible.</p>` +
+      `<p>In the earlier version of the study, ${S.name} scored perfectly on the resource-value test and collected the most valuable resource available in each of the last 20 rounds.</p>` +
+      `<p>Next, you\u2019ll watch screen recordings from some of those rounds. You can learn which resource is the most valuable by watching how ${S.name} collects them. Remember, in these rounds, ${S.name} always collects the most valuable resource available.</p>` +
       `<p>${S.name} can only see in the direction ${S.name} is facing, and not through the brick walls. Areas ${S.name} hasn\u2019t seen yet are covered in grey fog, and the fog clears as ${S.name} explores, so you see the Gridworld as ${S.name} discovers it.</p>` +
       `<p><strong>After watching ${S.name}, you\u2019ll collect resources yourself.</strong></p>`;
     const learnScreen = {
@@ -452,13 +435,13 @@
     };
     const alexQs = () => [
       { name: 'knows', prompt: `What does ${S.name} know?`, options: ['Where all the resources are', 'What each kind of resource is worth', 'Both of these', 'Neither of these'], correct: 'What each kind of resource is worth' },
-      { name: 'does', prompt: `What does ${S.name} always do?`, options: ['Collects the closest resource', 'Collects resources at random', 'Collects the most valuable resource available, in as few steps as possible'], correct: 'Collects the most valuable resource available, in as few steps as possible' },
+      { name: 'does', prompt: `What does ${S.name} always do?`, options: ['Collects the closest resource', 'Collects resources at random', 'Collects the most valuable resource available'], correct: 'Collects the most valuable resource available' },
       { name: 'fog', prompt: 'What does the grey fog show?', options: ['Walls no one can walk through', `Areas ${S.name} hasn\u2019t seen yet`, 'Areas with no resources'], correct: `Areas ${S.name} hasn\u2019t seen yet` }
     ];
     const alexCheck = {
       type: jsPsychSurveyMultiChoice,
       // The re-read panel includes Alex's description (what Alex knows) as well as the learning explanation.
-      preamble: () => `<div class="gw-screen gw-text"><h2>Quick check</h2><p>Please answer these questions.</p>${attemptLine('demonstrator_check')}${reread(aboutAlex1() + aboutAlex2() + learnExplanation())}</div>`,
+      preamble: () => `<div class="gw-screen gw-text"><h2>Quick check</h2><p>Please answer these questions.</p>${attemptLine('demonstrator_check')}${reread(aboutAlex1() + learnExplanation())}</div>`,
       questions: () => alexQs().map(q => ({ name: q.name, prompt: q.prompt, options: q.options, required: true })),
       data: { task: 'demonstrator_check' },
       on_finish: data => {
@@ -577,6 +560,7 @@
       type: jsPsychSurveyHtmlForm,
       preamble: () => textScreen(`About ${S.name}`, ''),
       html: () =>
+        likert('q_expert', `How competent was ${S.name} at collecting resources in the Gridworld?`, '1 Not competent at all', '7 Very competent') +
         likert('q_common', `How much do you feel you might have in common with ${S.name}?`, '1 Very little', '7 Very much') +
         likert('q_like', `How much do you think you might like ${S.name}?`, '1 Very little', '7 Very much') +
         likert('q_imagine', `How easy was it to imagine what ${S.name} was thinking?`, '1 Very easy', '7 Very hard') +
@@ -601,6 +585,7 @@
       on_finish: data => {
         const r = data.response;
         Object.assign(data, {
+          q_expert: Number(r.q_expert),
           q_common: Number(r.q_common), q_like: Number(r.q_like),
           q_imagine_hard: Number(r.q_imagine),   // 1 = very easy ... 7 = very hard
           q_human: Number(r.q_human),
