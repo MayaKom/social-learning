@@ -1,32 +1,27 @@
 /*
  * Recordings of real demonstrations, made with record.html (one per round, keyed by round id).
- * Rounds without a recording use the scripted path in stimuli.js.
- * Created 2026-10-30T15:15:13.198Z
+ * Every round needs a recording: the study does not start without all of them.
+ * Created 2026-11-04T14:03:25.719Z
  */
 const RECORDINGS = {
  "open_only_worst": {
   "demo": "open_only_worst",
-  "recorded_at": "2026-10-30T15:08:41.853Z",
+  "recorded_at": "2026-11-04T12:49:25.380Z",
   "recorded_by": null,
   "version_shown": 0,
   "events": [
    {
-    "t": 1184,
+    "t": 1278,
     "type": "turn",
     "heading": 180
    },
    {
-    "t": 2260,
-    "type": "turn",
-    "heading": 90
-   },
-   {
-    "t": 3353,
+    "t": 2094,
     "type": "turn",
     "heading": 0
    },
    {
-    "t": 4871,
+    "t": 3991,
     "type": "move",
     "to": [
      3,
@@ -34,11 +29,27 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 5197,
+    "t": 4268,
+    "type": "move",
+    "to": [
+     3,
+     5
+    ]
+   },
+   {
+    "t": 4542,
     "type": "move",
     "to": [
      4,
-     6
+     5
+    ]
+   },
+   {
+    "t": 4967,
+    "type": "move",
+    "to": [
+     5,
+     5
     ]
    },
    {
@@ -46,35 +57,19 @@ const RECORDINGS = {
     "type": "move",
     "to": [
      5,
-     6
+     4
     ]
    },
    {
-    "t": 6201,
+    "t": 6192,
     "type": "move",
     "to": [
      6,
-     6
+     4
     ]
    },
    {
-    "t": 6523,
-    "type": "move",
-    "to": [
-     7,
-     6
-    ]
-   },
-   {
-    "t": 6880,
-    "type": "move",
-    "to": [
-     7,
-     5
-    ]
-   },
-   {
-    "t": 7164,
+    "t": 6903,
     "type": "move",
     "to": [
      7,
@@ -82,7 +77,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 7799,
+    "t": 7229,
     "type": "move",
     "to": [
      7,
@@ -90,7 +85,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 8883,
+    "t": 7905,
     "type": "collect",
     "cell": [
      7,
@@ -102,22 +97,17 @@ const RECORDINGS = {
  },
  "corner_check_returns": {
   "demo": "corner_check_returns",
-  "recorded_at": "2026-10-30T15:09:40.832Z",
+  "recorded_at": "2026-11-04T13:59:38.322Z",
   "recorded_by": null,
   "version_shown": 0,
   "events": [
    {
-    "t": 1101,
+    "t": 1162,
     "type": "turn",
     "heading": 90
    },
    {
-    "t": 2369,
-    "type": "turn",
-    "heading": -90
-   },
-   {
-    "t": 3397,
+    "t": 3137,
     "type": "move",
     "to": [
      1,
@@ -125,7 +115,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 3820,
+    "t": 3349,
     "type": "move",
     "to": [
      1,
@@ -133,7 +123,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 4127,
+    "t": 3611,
     "type": "move",
     "to": [
      1,
@@ -141,7 +131,12 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 4559,
+    "t": 4624,
+    "type": "turn",
+    "heading": 0
+   },
+   {
+    "t": 6325,
     "type": "move",
     "to": [
      1,
@@ -149,17 +144,12 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 5446,
+    "t": 7250,
     "type": "turn",
     "heading": 0
    },
    {
-    "t": 6540,
-    "type": "turn",
-    "heading": 90
-   },
-   {
-    "t": 7103,
+    "t": 9286,
     "type": "move",
     "to": [
      1,
@@ -167,7 +157,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 7489,
+    "t": 9549,
     "type": "move",
     "to": [
      1,
@@ -175,7 +165,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 7805,
+    "t": 9737,
     "type": "move",
     "to": [
      1,
@@ -183,7 +173,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 8139,
+    "t": 9949,
     "type": "move",
     "to": [
      1,
@@ -191,7 +181,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 8574,
+    "t": 10762,
     "type": "move",
     "to": [
      2,
@@ -199,7 +189,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 8806,
+    "t": 10987,
     "type": "move",
     "to": [
      3,
@@ -207,7 +197,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 9026,
+    "t": 11186,
     "type": "move",
     "to": [
      4,
@@ -215,7 +205,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 9231,
+    "t": 11386,
     "type": "move",
     "to": [
      5,
@@ -223,7 +213,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 9760,
+    "t": 11612,
     "type": "move",
     "to": [
      6,
@@ -231,7 +221,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 9994,
+    "t": 11799,
     "type": "move",
     "to": [
      7,
@@ -239,7 +229,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 10193,
+    "t": 12024,
     "type": "move",
     "to": [
      8,
@@ -247,7 +237,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 10509,
+    "t": 12261,
     "type": "move",
     "to": [
      9,
@@ -255,7 +245,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 10780,
+    "t": 12512,
     "type": "move",
     "to": [
      10,
@@ -263,7 +253,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 11010,
+    "t": 12749,
     "type": "move",
     "to": [
      11,
@@ -271,7 +261,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 11349,
+    "t": 13012,
     "type": "move",
     "to": [
      12,
@@ -279,7 +269,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 11664,
+    "t": 13224,
     "type": "move",
     "to": [
      13,
@@ -287,7 +277,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 12177,
+    "t": 13424,
     "type": "move",
     "to": [
      14,
@@ -295,7 +285,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 12560,
+    "t": 13887,
     "type": "collect",
     "cell": [
      14,
@@ -307,22 +297,17 @@ const RECORDINGS = {
  },
  "pillar_room_empty": {
   "demo": "pillar_room_empty",
-  "recorded_at": "2026-10-30T15:10:20.561Z",
+  "recorded_at": "2026-11-04T12:55:53.859Z",
   "recorded_by": null,
   "version_shown": 0,
   "events": [
    {
-    "t": 934,
-    "type": "turn",
-    "heading": 0
-   },
-   {
-    "t": 1993,
+    "t": 2058,
     "type": "turn",
     "heading": 90
    },
    {
-    "t": 3457,
+    "t": 4269,
     "type": "move",
     "to": [
      1,
@@ -330,7 +315,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 4100,
+    "t": 4621,
     "type": "move",
     "to": [
      1,
@@ -338,23 +323,23 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 4628,
+    "t": 4894,
+    "type": "move",
+    "to": [
+     1,
+     4
+    ]
+   },
+   {
+    "t": 5157,
     "type": "move",
     "to": [
      2,
-     3
+     4
     ]
    },
    {
-    "t": 5060,
-    "type": "move",
-    "to": [
-     3,
-     3
-    ]
-   },
-   {
-    "t": 5739,
+    "t": 5482,
     "type": "move",
     "to": [
      3,
@@ -362,7 +347,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 6212,
+    "t": 5871,
     "type": "move",
     "to": [
      3,
@@ -370,7 +355,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 6582,
+    "t": 6282,
     "type": "move",
     "to": [
      3,
@@ -378,7 +363,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 7046,
+    "t": 6820,
     "type": "move",
     "to": [
      4,
@@ -386,7 +371,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 8503,
+    "t": 7458,
     "type": "move",
     "to": [
      5,
@@ -394,7 +379,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 9070,
+    "t": 8045,
     "type": "move",
     "to": [
      6,
@@ -402,7 +387,12 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 9345,
+    "t": 8747,
+    "type": "turn",
+    "heading": -90
+   },
+   {
+    "t": 9545,
     "type": "move",
     "to": [
      7,
@@ -410,7 +400,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 10169,
+    "t": 11157,
     "type": "move",
     "to": [
      7,
@@ -418,7 +408,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 10522,
+    "t": 11783,
     "type": "move",
     "to": [
      8,
@@ -426,7 +416,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 10949,
+    "t": 12122,
     "type": "move",
     "to": [
      9,
@@ -434,7 +424,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 11353,
+    "t": 12356,
     "type": "move",
     "to": [
      10,
@@ -442,7 +432,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 11678,
+    "t": 12770,
     "type": "move",
     "to": [
      11,
@@ -450,7 +440,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 12034,
+    "t": 13233,
     "type": "move",
     "to": [
      12,
@@ -458,7 +448,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 12443,
+    "t": 13620,
     "type": "move",
     "to": [
      13,
@@ -466,7 +456,12 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 12853,
+    "t": 14120,
+    "type": "turn",
+    "heading": -90
+   },
+   {
+    "t": 15231,
     "type": "move",
     "to": [
      13,
@@ -474,7 +469,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 13306,
+    "t": 15695,
     "type": "move",
     "to": [
      13,
@@ -482,7 +477,12 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 13881,
+    "t": 16758,
+    "type": "turn",
+    "heading": 180
+   },
+   {
+    "t": 17219,
     "type": "move",
     "to": [
      13,
@@ -490,7 +490,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 14899,
+    "t": 18120,
     "type": "move",
     "to": [
      13,
@@ -498,7 +498,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 15708,
+    "t": 18508,
     "type": "move",
     "to": [
      13,
@@ -506,7 +506,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 16536,
+    "t": 18895,
     "type": "move",
     "to": [
      13,
@@ -514,7 +514,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 17628,
+    "t": 19208,
     "type": "move",
     "to": [
      13,
@@ -522,7 +522,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 18003,
+    "t": 19682,
     "type": "move",
     "to": [
      12,
@@ -530,7 +530,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 18314,
+    "t": 19931,
     "type": "move",
     "to": [
      11,
@@ -538,7 +538,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 18615,
+    "t": 20195,
     "type": "move",
     "to": [
      10,
@@ -546,7 +546,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 19035,
+    "t": 20470,
     "type": "move",
     "to": [
      9,
@@ -554,7 +554,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 19387,
+    "t": 20858,
     "type": "move",
     "to": [
      8,
@@ -562,7 +562,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 19708,
+    "t": 21133,
     "type": "move",
     "to": [
      7,
@@ -570,7 +570,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 19964,
+    "t": 21344,
     "type": "move",
     "to": [
      6,
@@ -578,7 +578,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 20277,
+    "t": 21582,
     "type": "move",
     "to": [
      5,
@@ -586,7 +586,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 20542,
+    "t": 21808,
     "type": "move",
     "to": [
      4,
@@ -594,7 +594,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 20812,
+    "t": 22058,
     "type": "move",
     "to": [
      3,
@@ -602,7 +602,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 21044,
+    "t": 22295,
     "type": "move",
     "to": [
      2,
@@ -610,7 +610,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 21285,
+    "t": 22507,
     "type": "move",
     "to": [
      1,
@@ -618,7 +618,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 21961,
+    "t": 22883,
     "type": "collect",
     "cell": [
      1,
@@ -630,27 +630,32 @@ const RECORDINGS = {
  },
  "two_alcoves": {
   "demo": "two_alcoves",
-  "recorded_at": "2026-10-30T15:11:25.468Z",
+  "recorded_at": "2026-11-04T12:39:08.918Z",
   "recorded_by": null,
   "version_shown": 0,
   "events": [
    {
-    "t": 1169,
+    "t": 1337,
     "type": "turn",
     "heading": 180
    },
    {
-    "t": 2651,
+    "t": 2050,
     "type": "turn",
     "heading": 0
    },
    {
-    "t": 4384,
+    "t": 2975,
     "type": "turn",
-    "heading": -90
+    "heading": 180
    },
    {
-    "t": 5087,
+    "t": 3550,
+    "type": "turn",
+    "heading": 0
+   },
+   {
+    "t": 4650,
     "type": "move",
     "to": [
      7,
@@ -658,7 +663,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 5442,
+    "t": 4899,
     "type": "move",
     "to": [
      7,
@@ -666,55 +671,55 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 5726,
+    "t": 5337,
     "type": "move",
     "to": [
-     7,
+     6,
+     5
+    ]
+   },
+   {
+    "t": 5711,
+    "type": "move",
+    "to": [
+     5,
+     5
+    ]
+   },
+   {
+    "t": 6101,
+    "type": "move",
+    "to": [
+     5,
      4
     ]
    },
    {
-    "t": 6007,
+    "t": 6588,
     "type": "move",
     "to": [
-     7,
+     5,
      3
     ]
    },
    {
-    "t": 6314,
+    "t": 6861,
     "type": "move",
     "to": [
-     7,
+     5,
      2
     ]
    },
    {
-    "t": 6596,
+    "t": 7212,
     "type": "move",
     "to": [
-     7,
+     5,
      1
     ]
    },
    {
-    "t": 7006,
-    "type": "move",
-    "to": [
-     7,
-     0
-    ]
-   },
-   {
-    "t": 7414,
-    "type": "move",
-    "to": [
-     6,
-     0
-    ]
-   },
-   {
-    "t": 7831,
+    "t": 7737,
     "type": "move",
     "to": [
      5,
@@ -722,7 +727,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 8329,
+    "t": 8075,
     "type": "move",
     "to": [
      4,
@@ -730,7 +735,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 8772,
+    "t": 8437,
     "type": "move",
     "to": [
      3,
@@ -738,7 +743,12 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 9614,
+    "t": 9187,
+    "type": "turn",
+    "heading": 90
+   },
+   {
+    "t": 10287,
     "type": "move",
     "to": [
      2,
@@ -746,17 +756,12 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 11162,
+    "t": 11676,
     "type": "turn",
     "heading": 0
    },
    {
-    "t": 11804,
-    "type": "turn",
-    "heading": 0
-   },
-   {
-    "t": 12316,
+    "t": 12174,
     "type": "move",
     "to": [
      3,
@@ -764,7 +769,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 12705,
+    "t": 12425,
     "type": "move",
     "to": [
      4,
@@ -772,7 +777,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 12986,
+    "t": 12662,
     "type": "move",
     "to": [
      5,
@@ -780,7 +785,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 13264,
+    "t": 12950,
     "type": "move",
     "to": [
      6,
@@ -788,7 +793,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 13554,
+    "t": 13174,
     "type": "move",
     "to": [
      7,
@@ -796,7 +801,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 13932,
+    "t": 13413,
     "type": "move",
     "to": [
      8,
@@ -804,7 +809,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 14207,
+    "t": 13650,
     "type": "move",
     "to": [
      9,
@@ -812,7 +817,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 14475,
+    "t": 13849,
     "type": "move",
     "to": [
      10,
@@ -820,7 +825,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 14796,
+    "t": 14276,
     "type": "move",
     "to": [
      11,
@@ -828,7 +833,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 15204,
+    "t": 14662,
     "type": "move",
     "to": [
      12,
@@ -836,7 +841,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 15814,
+    "t": 15187,
     "type": "move",
     "to": [
      13,
@@ -844,7 +849,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 16613,
+    "t": 15887,
     "type": "move",
     "to": [
      12,
@@ -852,7 +857,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 16938,
+    "t": 16236,
     "type": "move",
     "to": [
      11,
@@ -860,7 +865,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 17902,
+    "t": 16750,
     "type": "move",
     "to": [
      11,
@@ -868,7 +873,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 18395,
+    "t": 17287,
     "type": "move",
     "to": [
      11,
@@ -876,7 +881,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 18669,
+    "t": 17500,
     "type": "move",
     "to": [
      11,
@@ -884,7 +889,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 18914,
+    "t": 17687,
     "type": "move",
     "to": [
      11,
@@ -892,7 +897,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 19172,
+    "t": 18076,
     "type": "move",
     "to": [
      11,
@@ -900,7 +905,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 19392,
+    "t": 18387,
     "type": "move",
     "to": [
      11,
@@ -908,7 +913,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 19775,
+    "t": 18763,
     "type": "move",
     "to": [
      11,
@@ -916,7 +921,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 20212,
+    "t": 19413,
     "type": "collect",
     "cell": [
      11,
@@ -928,22 +933,27 @@ const RECORDINGS = {
  },
  "third_over_worst": {
   "demo": "third_over_worst",
-  "recorded_at": "2026-10-30T15:12:23.113Z",
+  "recorded_at": "2026-11-04T12:40:03.106Z",
   "recorded_by": null,
   "version_shown": 0,
   "events": [
    {
-    "t": 838,
-    "type": "turn",
-    "heading": 90
-   },
-   {
-    "t": 1914,
+    "t": 686,
     "type": "turn",
     "heading": 180
    },
    {
-    "t": 3105,
+    "t": 2385,
+    "type": "turn",
+    "heading": 0
+   },
+   {
+    "t": 4236,
+    "type": "turn",
+    "heading": -90
+   },
+   {
+    "t": 5185,
     "type": "move",
     "to": [
      14,
@@ -951,7 +961,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 3580,
+    "t": 5649,
     "type": "move",
     "to": [
      14,
@@ -959,7 +969,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 4067,
+    "t": 6177,
     "type": "move",
     "to": [
      14,
@@ -967,7 +977,12 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 4610,
+    "t": 7986,
+    "type": "turn",
+    "heading": 180
+   },
+   {
+    "t": 9724,
     "type": "move",
     "to": [
      14,
@@ -975,12 +990,12 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 5691,
+    "t": 10811,
     "type": "turn",
     "heading": 180
    },
    {
-    "t": 7533,
+    "t": 12824,
     "type": "move",
     "to": [
      13,
@@ -988,7 +1003,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 7760,
+    "t": 13334,
     "type": "move",
     "to": [
      12,
@@ -996,7 +1011,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 8001,
+    "t": 13363,
     "type": "move",
     "to": [
      11,
@@ -1004,7 +1019,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 8204,
+    "t": 13394,
     "type": "move",
     "to": [
      10,
@@ -1012,7 +1027,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 8426,
+    "t": 13426,
     "type": "move",
     "to": [
      9,
@@ -1020,7 +1035,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 8694,
+    "t": 13458,
     "type": "move",
     "to": [
      8,
@@ -1028,7 +1043,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 8931,
+    "t": 13507,
     "type": "move",
     "to": [
      7,
@@ -1036,7 +1051,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 9156,
+    "t": 13535,
     "type": "move",
     "to": [
      6,
@@ -1044,7 +1059,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 9409,
+    "t": 13567,
     "type": "move",
     "to": [
      5,
@@ -1052,7 +1067,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 9622,
+    "t": 13595,
     "type": "move",
     "to": [
      4,
@@ -1060,7 +1075,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 9820,
+    "t": 13861,
     "type": "move",
     "to": [
      3,
@@ -1068,7 +1083,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 10221,
+    "t": 15549,
     "type": "move",
     "to": [
      2,
@@ -1076,7 +1091,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 10569,
+    "t": 15949,
     "type": "move",
     "to": [
      1,
@@ -1084,7 +1099,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 11058,
+    "t": 16374,
     "type": "collect",
     "cell": [
      1,
@@ -1096,22 +1111,17 @@ const RECORDINGS = {
  },
  "room_empty": {
   "demo": "room_empty",
-  "recorded_at": "2026-10-30T15:14:05.154Z",
+  "recorded_at": "2026-11-04T12:42:09.726Z",
   "recorded_by": null,
   "version_shown": 0,
   "events": [
    {
-    "t": 1733,
-    "type": "turn",
-    "heading": 0
-   },
-   {
-    "t": 2958,
+    "t": 1789,
     "type": "turn",
     "heading": 90
    },
    {
-    "t": 4158,
+    "t": 4377,
     "type": "move",
     "to": [
      2,
@@ -1119,7 +1129,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 4680,
+    "t": 4676,
     "type": "move",
     "to": [
      3,
@@ -1127,47 +1137,47 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 5039,
+    "t": 5627,
     "type": "move",
     "to": [
-     3,
+     4,
+     1
+    ]
+   },
+   {
+    "t": 6115,
+    "type": "move",
+    "to": [
+     4,
      2
     ]
    },
    {
-    "t": 5423,
+    "t": 6589,
     "type": "move",
     "to": [
-     3,
+     4,
      3
     ]
    },
    {
-    "t": 5787,
+    "t": 6951,
     "type": "move",
     "to": [
-     3,
+     4,
      4
     ]
    },
    {
-    "t": 6204,
+    "t": 7489,
     "type": "move",
     "to": [
-     3,
+     4,
      5
     ]
    },
    {
-    "t": 6577,
-    "type": "move",
-    "to": [
-     3,
-     6
-    ]
-   },
-   {
-    "t": 6974,
+    "t": 8252,
     "type": "move",
     "to": [
      4,
@@ -1175,7 +1185,12 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 7622,
+    "t": 9451,
+    "type": "turn",
+    "heading": 0
+   },
+   {
+    "t": 11076,
     "type": "move",
     "to": [
      5,
@@ -1183,7 +1198,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 8691,
+    "t": 11413,
     "type": "move",
     "to": [
      6,
@@ -1191,7 +1206,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 9062,
+    "t": 11814,
     "type": "move",
     "to": [
      7,
@@ -1199,15 +1214,15 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 9458,
+    "t": 12939,
     "type": "move",
     "to": [
-     8,
-     6
+     7,
+     5
     ]
    },
    {
-    "t": 9833,
+    "t": 13689,
     "type": "move",
     "to": [
      8,
@@ -1215,7 +1230,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 10445,
+    "t": 14453,
     "type": "move",
     "to": [
      9,
@@ -1223,7 +1238,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 10835,
+    "t": 14664,
     "type": "move",
     "to": [
      10,
@@ -1231,7 +1246,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 11230,
+    "t": 14838,
     "type": "move",
     "to": [
      11,
@@ -1239,7 +1254,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 11752,
+    "t": 15038,
     "type": "move",
     "to": [
      12,
@@ -1247,7 +1262,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 12355,
+    "t": 15240,
     "type": "move",
     "to": [
      13,
@@ -1255,52 +1270,68 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 13606,
+    "t": 15439,
     "type": "move",
     "to": [
-     13,
+     14,
+     5
+    ]
+   },
+   {
+    "t": 16151,
+    "type": "move",
+    "to": [
+     14,
      4
     ]
    },
    {
-    "t": 14118,
+    "t": 16463,
     "type": "move",
     "to": [
-     13,
+     14,
      3
     ]
    },
    {
-    "t": 14729,
+    "t": 16914,
     "type": "move",
     "to": [
-     13,
+     14,
      2
     ]
    },
    {
-    "t": 15678,
+    "t": 18438,
     "type": "turn",
     "heading": 180
    },
    {
-    "t": 16801,
+    "t": 20864,
     "type": "move",
     "to": [
-     13,
+     14,
      3
     ]
    },
    {
-    "t": 17595,
+    "t": 21126,
     "type": "move",
     "to": [
-     13,
+     14,
      4
     ]
    },
    {
-    "t": 18135,
+    "t": 21577,
+    "type": "move",
+    "to": [
+     14,
+     5
+    ]
+   },
+   {
+    "t": 22314,
     "type": "move",
     "to": [
      13,
@@ -1308,7 +1339,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 18444,
+    "t": 23051,
     "type": "move",
     "to": [
      13,
@@ -1316,7 +1347,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 19064,
+    "t": 23839,
     "type": "move",
     "to": [
      12,
@@ -1324,7 +1355,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 19285,
+    "t": 24065,
     "type": "move",
     "to": [
      11,
@@ -1332,7 +1363,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 19478,
+    "t": 24566,
     "type": "move",
     "to": [
      10,
@@ -1340,7 +1371,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 19660,
+    "t": 24611,
     "type": "move",
     "to": [
      9,
@@ -1348,7 +1379,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 19827,
+    "t": 24643,
     "type": "move",
     "to": [
      8,
@@ -1356,7 +1387,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 20710,
+    "t": 24674,
     "type": "move",
     "to": [
      7,
@@ -1364,7 +1395,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 20947,
+    "t": 24706,
     "type": "move",
     "to": [
      6,
@@ -1372,7 +1403,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 21307,
+    "t": 24739,
     "type": "move",
     "to": [
      5,
@@ -1380,7 +1411,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 21735,
+    "t": 26116,
     "type": "move",
     "to": [
      4,
@@ -1388,7 +1419,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 22147,
+    "t": 26550,
     "type": "move",
     "to": [
      3,
@@ -1396,7 +1427,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 22548,
+    "t": 26916,
     "type": "move",
     "to": [
      2,
@@ -1404,7 +1435,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 22940,
+    "t": 27289,
     "type": "move",
     "to": [
      1,
@@ -1412,7 +1443,7 @@ const RECORDINGS = {
     ]
    },
    {
-    "t": 23407,
+    "t": 27614,
     "type": "collect",
     "cell": [
      1,
