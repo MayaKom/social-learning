@@ -2,7 +2,7 @@
  * Study configuration. Most changes you will need to make before launching are in this file.
  */
 const CONFIG = {
-  studyVersion: '0.5.0',
+  studyVersion: '0.6.0',
 
   // ---- Data saving ----
   // 'server'   : saves to the university server through api/save.php (the live study on Prolific).
@@ -31,9 +31,9 @@ const CONFIG = {
 
   // ---- Conditions ----
   agentConditions: ['similar', 'dissimilar', 'control'],
-  demonstratorName: 'Alex',
+  demonstratorName: 'PID XXX3d4',
   // The demonstrator's initials: each participant sees one of these, drawn at random.
-  demonstratorNames: ['S.B.', 'T.L.', 'H.G.', 'N.I.', 'D.L.'],
+  demonstratorNames: ['PID XXX3d4', 'PID XXX8b1', 'PID XXX27e'],
 
   // Show a short reminder of the demonstrator description above each demonstration.
   showReminder: true,
@@ -106,7 +106,7 @@ const CONFIG = {
       ]
     }
   ],
-  avatarQuestion: 'Which of the following avatars would you like to play with in this game?',
+  avatarQuestion: 'Which avatar would you like to play with in this game?',
   avatarOptions: ['blue', 'burgundy', 'green'],
   // Used on the "Meet Alex" screen: "Alex answered the same questions about ..."
   topicsText: 'how they spend their free time, their personality, what matters most to them, where they grew up, and avatars',

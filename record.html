@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Record demonstrations</title>
+<link rel="stylesheet" href="css/experiment.css">
+<style>
+  body { margin: 0; background: #F2F3F5; color: #1D2330; font-family: "Atkinson Hyperlegible", -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+  .wrap { display: grid; grid-template-columns: 260px 1fr; gap: 18px; max-width: 1240px; margin: 20px auto; padding: 0 16px; align-items: start; }
+  .card { background: #fff; border: 1px solid #D6D9DF; border-radius: 14px; padding: 16px 18px; }
+  h1 { font-size: 22px; margin: 0 0 4px; } h2 { font-size: 19px; margin: 0 0 6px; } h3 { font-size: 15px; margin: 14px 0 6px; }
+  .muted { color: #5A6272; font-size: 14px; }
+  .rounds button { display: flex; justify-content: space-between; width: 100%; text-align: left; margin: 0 0 6px; padding: 9px 10px; border-radius: 9px;
+    border: 1px solid #D6D9DF; background: #fff; font: inherit; font-size: 14px; cursor: pointer; }
+  .rounds button.active { border: 2px solid #534AB7; background: #EEEDFE; }
+  .ok { color: #0F6E56; font-weight: 700; } .warn { color: #B42318; font-weight: 700; } .none { color: #8F96A3; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 10px 0; }
+  .btn { font: inherit; font-size: 15px; font-weight: 700; border: 0; border-radius: 9px; padding: 9px 16px; cursor: pointer; background: #1D2330; color: #fff; }
+  .btn.secondary { background: #fff; color: #1D2330; border: 1px solid #D6D9DF; }
+  .btn:disabled { opacity: .4; cursor: default; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 6px 0; font-size: 14px; }
+  .legend span { display: inline-flex; align-items: center; gap: 4px; }
+  .plan { background: #F6F7F9; border-radius: 10px; padding: 10px 12px; font-size: 15px; }
+  .status { font-weight: 700; min-height: 1.4em; }
+  .keys { font-size: 13px; color: #5A6272; }
+  kbd { border: 1px solid #C3C8D1; border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; font-size: 12px; background: #fff; }
+  .results { margin-top: 12px; font-size: 14px; }
+  .results li { margin-bottom: 3px; }
+  .results li.p { color: #B42318; }
+  select, input[type=text] { font: inherit; font-size: 14px; padding: 5px 8px; border: 1px solid #D6D9DF; border-radius: 8px; }
+  .boardwrap { outline: none; }
+  .boardwrap:focus-visible { outline: 3px solid #534AB7; border-radius: 6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>Record demonstrations</h1>
+    <p class="muted">For researchers only. Do not upload this page to the live study.</p>
+    <div class="rounds" id="rounds"></div>
+    <h3>Recorded by</h3>
+    <input type="text" id="who" placeholder="Name or initials" style="width: 100%;">
+    <h3>Finished?</h3>
+    <button class="btn" id="download" style="width: 100%;">Download recordings.js</button>
+    <p class="muted">Put the downloaded file in the study's <code>js</code> folder (replacing the old one). Every round needs a recording: the study will not start without all six.</p>
+  </div>
+
+  <div class="card">
+    <h2 id="title"></h2>
+    <div class="plan" id="plan"></div>
+    <div class="row">
+      <label class="muted">Values shown as
+        <select id="version">
+          <option value="0">version 0</option><option value="1">version 1</option><option value="2">version 2</option><option value="3">version 3</option>
+        </select>
+      </label>
+      <div class="legend" id="legend"></div>
+    </div>
+    <div class="boardwrap" id="board" tabindex="0"></div>
+    <p class="keys"><kbd>&larr;</kbd><kbd>&uarr;</kbd><kbd>&rarr;</kbd><kbd>&darr;</kbd> move one cell &nbsp;&middot;&nbsp;
+      <kbd>Shift</kbd>+arrow look in that direction without moving &nbsp;&middot;&nbsp; <kbd>Space</kbd> collect the resource you are standing on</p>
+    <div class="row">
+      <button class="btn" id="start">Start recording</button>
+      <button class="btn secondary" id="replay" disabled>Replay</button>
+      <button class="btn" id="keep" disabled>Keep this recording</button>
+      <label class="muted">Replay speed <select id="speed"><option value="1">1&times;</option><option value="2">2&times;</option><option value="4">4&times;</option></select></label>
+      <span class="status" id="status"></span>
+    </div>
+    <div class="results" id="results"></div>
+  </div>
+</div>
+
+<script>var jsPsychModule = { ParameterType: {} }; // the study's plugins are loaded but not used on this page</script>
+<script src="js/config.js"></script>
+<script src="js/gridworld-core.js"></script>
+<script src="js/stimuli.js"></script>
+<script src="js/recordings.js"></script>
+<script src="js/gridworld.js"></script>
+<script>
+(function () {
+  'use strict';
+  const G = window.GridCore, { itemIcon } = window.GridArt;
+  const $ = id => document.getElementById(id);
+  const STORE = 'gw-recordings';
+  // What should happen in each round ({A} best, {B} second, {C} third, {D} worst).
+  const PLANS = {
+    open_only_worst: 'Only the {D} is here. Look around, then walk straight to it and collect it.',
+    corner_check_returns: 'The {B} is in view. Walk up the left side until you can see the whole area behind the wall (the {C} is there), then turn back and collect the {B}.',
+    pillar_room_empty: 'The {B} is in view. Walk round under the wall (you will see the {C}), go up into the walled room on the right until you can see all of it (it is empty), then walk back and collect the {B}.',
+    two_alcoves: 'The {B} is close by. Walk to the top row, check the left corner (the {D} is there), then the right corner (empty), then collect the {B}.',
+    third_over_worst: 'The {D} is close by. Walk up the right side until you can see behind the wall (the {C} is there), then go and collect the {C}.',
+    room_empty: 'The {B} is close by. Walk round under the wall (you will see the {D}), go up into the room until you can see all of it (it is empty), then walk back and collect the {B}.'
+  };
+
+  // Kept recordings: those already in js/recordings.js, overridden by any kept on this computer.
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(STORE) || '{}'); } catch (e) { saved = {}; }
+  const kept = Object.assign({}, typeof RECORDINGS !== 'undefined' ? RECORDINGS : {}, saved);
+  const persist = () => { try { localStorage.setItem(STORE, JSON.stringify(kept)); } catch (e) { /* storage unavailable */ } };
+
+  let current = STIMULI.demos[0], cb = 0, world = null;
+  let rec = null, recording = false, t0 = 0, queue = [], busy = false, done = false;
+
+  const check = (d, r) => {
+    const res = G.analyzeRoute(d, G.recordingToActs(r), CONFIG.values, CONFIG.stepCost, CONFIG.fieldOfView || 360);
+    for (const p of (STIMULI.probes || []).filter(p => p.demo === d.id)) {
+      if (!r.events.some(e => e.type === 'move' && e.to[0] === p.agentCell[0] && e.to[1] === p.agentCell[1])) {
+        const msg = `PROBLEM: the belief probe at the end of the study shows Alex at ${p.agentCell}, but this route never passes that cell`;
+        res.log.push(msg); res.problems.push(msg);
+      }
+    }
+    return res;
+  };
+  const statusOf = id => {
+    if (!kept[id]) return '<span class="none">not recorded</span>';
+    const r = check(STIMULI.demos.find(d => d.id === id), kept[id]);
+    return r.problems.length ? '<span class="warn">kept, with issues</span>' : '<span class="ok">&#10003; kept</span>';
+  };
+  function drawRounds() {
+    $('rounds').innerHTML = STIMULI.demos.map((d, i) =>
+      `<button data-id="${d.id}" class="${d.id === current.id ? 'active' : ''}"><span>${i + 1}. ${d.id}</span>${statusOf(d.id)}</button>`).join('');
+    $('rounds').querySelectorAll('button').forEach(b => b.onclick = () => { if (!recording) select(b.dataset.id); });
+  }
+  const names = () => Object.fromEntries(G.ROLES.map(r => [r, G.itemName(G.itemFor(r, cb))]));
+  function drawPlan() {
+    const n = names();
+    $('title').textContent = `Round ${STIMULI.demos.indexOf(current) + 1}: ${current.id}`;
+    $('plan').innerHTML = (PLANS[current.id] || 'Collect the most valuable resource available, in as few steps as possible.').replace(/\{(\w)\}/g, (m, r) => n[r]) +
+      `<br><span class="muted">Alex only sees in the direction Alex is facing (${CONFIG.fieldOfView || 360}&deg;). Start by looking around with Shift + arrows, ` +
+      'so Alex sees what is in view, and look into every area you check.</span>';
+    $('legend').innerHTML = G.ROLES.map(r => { const it = G.itemFor(r, cb);
+      return `<span>${itemIcon(it, 22, false)}${G.itemName(it)}: ${CONFIG.values[r]} points</span>`; }).join('') + `<span>Each step: &minus;${CONFIG.stepCost}</span>`;
+  }
+  function freshWorld() {
+    if (world) world.destroy();
+    const L = GridWorld.LIVE;   // the same animation timings as the replay in the study
+    world = new GridWorld($('board'), { cb, label: 'Recording board', timing: { step: L.step, turn: L.look, collect: L.collect } });
+    world.setup(current, 'demo');
+    window.recorderWorld = world;   // for checking the page
+  }
+  function select(id) {
+    current = STIMULI.demos.find(d => d.id === id);
+    rec = null; done = false; freshWorld(); drawPlan(); drawRounds();
+    $('results').innerHTML = ''; $('keep').disabled = true;
+    $('replay').disabled = !kept[current.id];
+    $('status').textContent = kept[current.id] ? 'A recording is kept for this round. Replay it, or record again.' : 'Press Start recording when ready.';
+    if (kept[current.id]) showResults(kept[current.id], true);
+  }
+  function showResults(r, isKept) {
+    const res = check(current, r), secs = (r.events.length ? r.events[r.events.length - 1].t : 0) / 1000;
+    $('results').innerHTML = `<strong>${isKept ? 'Kept recording' : 'This recording'}:</strong> ${res.steps} steps, ${secs.toFixed(1)} seconds, collects the ` +
+      `${res.collected ? G.itemName(G.itemFor(res.collected, cb)) + ' (' + { A: 'best', B: 'second', C: 'third', D: 'worst' }[res.collected] + ')' : 'nothing'}` +
+      (r.recorded_by ? `, recorded by ${r.recorded_by}` : '') + '.' +
+      (res.problems.length ? `<p class="warn">Issues found: consider recording this round again.</p>` : `<p class="ok">No issues found.</p>`) +
+      '<ul>' + res.log.map(l => `<li class="${/^(PROBLEM|CHECK)/.test(l) ? 'p' : ''}">${l}</li>`).join('') + '</ul>';
+  }
+
+  // ---------- Recording ----------
+  $('start').onclick = () => {
+    rec = { demo: current.id, recorded_at: new Date().toISOString(), recorded_by: $('who').value.trim() || null, version_shown: cb, events: [] };
+    recording = true; done = false; queue = []; freshWorld();
+    $('results').innerHTML = ''; $('keep').disabled = true; $('replay').disabled = true; $('start').textContent = 'Restart';
+    $('status').textContent = 'Recording\u2026 use the arrow keys; press Space on a resource to collect it.';
+    t0 = performance.now(); $('board').focus();
+  };
+  const DIRS = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
+  const HEAD = { ArrowUp: -90, ArrowDown: 90, ArrowLeft: 180, ArrowRight: 0 };
+  document.addEventListener('keydown', e => {
+    if (!recording || done) return;
+    if (!(e.key in DIRS) && e.key !== ' ' && e.key !== 'Enter') return;
+    e.preventDefault();
+    queue.push({ key: e.key, shift: e.shiftKey, t: Math.round(performance.now() - t0) });
+    process();
+  });
+  async function process() {
+    if (busy) return; busy = true;
+    while (queue.length && recording && !done) {
+      const k = queue.shift();
+      if (k.key === ' ' || k.key === 'Enter') {
+        const it = world.items.find(i => i.cell[0] === world.cell[0] && i.cell[1] === world.cell[1]);
+        if (!it) { $('status').textContent = 'There is no resource here to collect.'; continue; }
+        rec.events.push({ t: k.t, type: 'collect', cell: world.cell.slice(), role: it.role });
+        await world.collect(it, GridWorld.LIVE.collect); finish(); break;
+      }
+      if (k.shift) { rec.events.push({ t: k.t, type: 'turn', heading: HEAD[k.key] }); await world.turnTo(HEAD[k.key], GridWorld.LIVE.look); continue; }
+      const [dc, dr] = DIRS[k.key], to = [world.cell[0] + dc, world.cell[1] + dr];
+      const blocked = to[0] < 0 || to[1] < 0 || to[0] >= G.COLS || to[1] >= G.ROWS || world.W.set.has(G.key(...to));
+      if (blocked) { rec.events.push({ t: k.t, type: 'bump', toward: to }); await world.nudge(to, GridWorld.LIVE.bump); }
+      else { rec.events.push({ t: k.t, type: 'move', to }); await world.stepTo(...to, GridWorld.LIVE.step); }
+    }
+    busy = false;
+  }
+  function finish() {
+    done = true; recording = false; $('start').textContent = 'Record again';
+    $('status').textContent = 'Done. Check the result below, replay it, and keep it if you are happy.';
+    $('keep').disabled = false; $('replay').disabled = false; showResults(rec, false);
+  }
+  $('keep').onclick = () => {
+    if (!rec || !done) return;
+    if (!rec.recorded_by && $('who').value.trim()) rec.recorded_by = $('who').value.trim();
+    kept[current.id] = rec; persist(); drawRounds(); $('keep').disabled = true;
+    $('status').textContent = 'Kept. Choose the next round on the left.';
+  };
+  $('replay').onclick = async () => {
+    const r = (done && rec) ? rec : kept[current.id];
+    if (!r) return;
+    $('replay').disabled = true; $('status').textContent = 'Replaying as participants will see it\u2026';
+    if (world) world.destroy();
+    world = new GridWorld($('board'), { cb, speed: Number($('speed').value), label: 'Replay', timing: CONFIG.timing });
+    window.recorderWorld = world;
+    await world.playRecording(current, r);
+    $('replay').disabled = false; $('status').textContent = 'Replay finished.';
+  };
+  $('version').onchange = e => { cb = Number(e.target.value); if (!recording) { freshWorld(); drawPlan(); drawRounds(); } };
+  $('download').onclick = () => {
+    const ids = STIMULI.demos.map(d => d.id).filter(id => kept[id]);
+    if (!ids.length) { alert('No recordings kept yet.'); return; }
+    const body = '/*\n * Recordings of real demonstrations, made with record.html (one per round, keyed by round id).\n' +
+      ' * Every round needs a recording: the study does not start without all of them.\n * Created ' + new Date().toISOString() + '\n */\n' +
+      'const RECORDINGS = ' + JSON.stringify(Object.fromEntries(ids.map(id => [id, kept[id]])), null, 1) + ';\n\n' +
+      "if (typeof module !== 'undefined' && module.exports) module.exports = { RECORDINGS };\n";
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([body], { type: 'text/javascript' }));
+    a.download = 'recordings.js'; document.body.appendChild(a); a.click(); a.remove();
+  };
+  select(current.id);
+})();
+</script>
+</body>
+</html>

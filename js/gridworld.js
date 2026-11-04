@@ -100,6 +100,7 @@
   class GridWorld {
     constructor(container, { cb = 0, speed = 1, timing = {}, label = 'Grid', avatar = 'neutral', fov = null } = {}) {
       ensureDefs();
+      this.pausedFor = 0; this.pausedAt = null;
       this.avatar = avatar;
       // Field of view in degrees: Alex only sees within this cone around the facing direction.
       this.fov = fov !== null ? fov : (typeof CONFIG !== 'undefined' && CONFIG.fieldOfView) || 360;
@@ -123,6 +124,11 @@
       for (const k of ['grid', 'items', 'fog', 'walls', 'agent']) this.L[k] = this.svg.querySelector('.L-' + k);
     }
     destroy() { this.alive = false; }
+    // Clock for animations and replays: it stands still while the world is paused (see pause/resume),
+    // so a paused replay continues from exactly the same point.
+    now() { return performance.now() - this.pausedFor - (this.pausedAt !== null ? performance.now() - this.pausedAt : 0); }
+    pause() { if (this.pausedAt === null) this.pausedAt = performance.now(); }
+    resume() { if (this.pausedAt !== null) { this.pausedFor += performance.now() - this.pausedAt; this.pausedAt = null; } }
     el(tag, attrs, parent) {
       const e = document.createElementNS(svgNS, tag);
       for (const k in attrs) e.setAttribute(k, attrs[k]);
@@ -163,7 +169,8 @@
         return Object.assign({}, g, { item, el: grp });
       });
       this.ag = this.el('g', {}, this.L.agent);
-      this.ag.innerHTML = agentArt(kind === 'demo' ? this.avatar : 'player');
+      // Alex's rounds use Alex's avatar; the participant's rounds use the avatar given (their own choice), if any.
+      this.ag.innerHTML = agentArt(kind === 'demo' || this.avatar !== 'neutral' ? this.avatar : 'player');
       [this.x, this.y] = G.ctr(...stim.start);
       this.h = -90; this.cell = stim.start.slice(); this.steps = 0;
       this.render();
@@ -178,10 +185,10 @@
     tween(ms, fn) {
       return new Promise(res => {
         if (!this.alive) return res(false);
-        const t0 = performance.now(), d = ms / this.speed;
-        const f = now => {
+        const t0 = this.now(), d = ms / this.speed;
+        const f = () => {
           if (!this.alive) return res(false);
-          const k = Math.min(1, (now - t0) / d);
+          const k = Math.min(1, (this.now() - t0) / d);
           fn(k); this.render();
           if (k < 1) requestAnimationFrame(f); else res(true);
         };
@@ -282,8 +289,8 @@
     // divided by `speed`, which is only used for testing.
     async playRecording(stim, rec) {
       this.setup(stim, 'demo');
-      const t0 = performance.now();
-      const recordedNow = () => (performance.now() - t0) * this.speed;
+      const t0 = this.now();
+      const recordedNow = () => (this.now() - t0) * this.speed;
       for (const e of rec.events) {
         if (e.t > recordedNow() && !(await this.wait(e.t - recordedNow()))) return false;
         if (e.type === 'move') {
@@ -339,10 +346,30 @@
         <div class="gw-row"><span class="gw-status"></span><button type="button" class="jspsych-btn gw-next" hidden>${trial.button_label}</button></div></div>`;
       const q = s => display_element.querySelector(s);
       const world = new GridWorld(q('.gw-board-wrap'), { cb: trial.counterbalance, speed: trial.speed, timing: trial.timing, label: 'Demonstration', avatar: trial.avatar });
+      // While the recording plays, it pauses whenever the study window loses focus (another window or
+      // tab) and continues from the same point on return, so no part of a round is missed.
+      const wrap = q('.gw-board-wrap');
+      wrap.style.position = 'relative';
+      const note = document.createElement('div');
+      note.setAttribute('role', 'status');
+      note.style.cssText = 'position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center; ' +
+        'text-align:center; background:rgba(255,255,255,0.88); font-size:17px; padding:16px;';
+      note.innerHTML = '<strong style="font-size:20px;">Paused</strong><span>The recording continues when you come back to this window.</span>';
+      wrap.appendChild(note);
+      let pausedCount = 0, pausedMs = 0, since = null, playing = true;
+      const away = () => { if (!playing || since !== null) return; since = performance.now(); pausedCount++; world.pause(); note.style.display = 'flex'; };
+      const back = () => { if (since === null) return; pausedMs += performance.now() - since; since = null; world.resume(); note.style.display = 'none'; };
+      const onVisibility = () => (document.hidden ? away() : back());
+      window.addEventListener('blur', away); window.addEventListener('focus', back); document.addEventListener('visibilitychange', onVisibility);
+      const stopPausing = () => {
+        playing = false; back();
+        window.removeEventListener('blur', away); window.removeEventListener('focus', back); document.removeEventListener('visibilitychange', onVisibility);
+      };
       const t0 = performance.now();
       world.playRecording(trial.stimulus, trial.recording).then(ok => {
+        stopPausing();
         if (!ok) return;
-        const watch_ms = Math.round(performance.now() - t0);
+        const watch_ms = Math.round(performance.now() - t0);   // includes any time paused
         const next = q('.gw-next');
         const below = q('.gw-below');
         if (trial.prompt) {
@@ -365,7 +392,8 @@
           }
           world.destroy();
           this.jsPsych.finishTrial({ demo_id: trial.stimulus.id, demo_source: 'recording',
-            recording_made: trial.recording.recorded_at || null, watch_ms, prompt: trial.prompt, response,
+            recording_made: trial.recording.recorded_at || null, watch_ms, paused_count: pausedCount, paused_ms: Math.round(pausedMs),
+            prompt: trial.prompt, response,
             prompt_view_ms: Math.round(performance.now() - tq) });
         });
       });
@@ -387,7 +415,8 @@
       button_label: { type: P.STRING, default: 'Continue' }
     },
     data: {
-      demo_id: { type: P.STRING }, demo_source: { type: P.STRING }, recording_made: { type: P.STRING }, watch_ms: { type: P.INT }, prompt: { type: P.STRING },
+      demo_id: { type: P.STRING }, demo_source: { type: P.STRING }, recording_made: { type: P.STRING }, watch_ms: { type: P.INT },
+      paused_count: { type: P.INT }, paused_ms: { type: P.INT }, prompt: { type: P.STRING },
       response: { type: P.STRING }, prompt_view_ms: { type: P.INT }
     },
     citations
@@ -400,7 +429,7 @@
         <div class="gw-board-wrap"></div>
         <div class="gw-row"><span class="gw-status">${trial.instruction}</span><button type="button" class="jspsych-btn gw-next" hidden>${trial.button_label}</button></div></div>`;
       const q = s => display_element.querySelector(s);
-      const world = new GridWorld(q('.gw-board-wrap'), { cb: trial.counterbalance, speed: trial.speed, timing: trial.timing, label: 'Your turn' });
+      const world = new GridWorld(q('.gw-board-wrap'), { cb: trial.counterbalance, speed: trial.speed, timing: trial.timing, label: 'Your turn', avatar: trial.avatar });
       const stim = trial.stimulus;
       world.choose(stim, () => { q('.gw-status').textContent = ''; }).then(({ it, rt }) => {
         const data = {
@@ -420,6 +449,7 @@
     name: 'grid-choice', version: '1.0.0',
     parameters: {
       stimulus: { type: P.COMPLEX, default: undefined },
+      avatar: { type: P.STRING, default: 'neutral' },
       counterbalance: { type: P.INT, default: 0 },
       speed: { type: P.FLOAT, default: 1 },
       timing: { type: P.COMPLEX, default: {} },

@@ -71,7 +71,7 @@
     // ---------- Participant and condition assignment ----------
     const pid = urlVar('PROLIFIC_PID') || jsPsych.randomization.randomID(12);
     const S = {
-      // The demonstrator's initials, drawn at random for each participant (saved as demonstrator_name).
+      // The demonstrator's ID, drawn at random for each participant from demonstratorNames in config.js.
       name: jsPsych.randomization.sampleWithoutReplacement(CONFIG.demonstratorNames || [CONFIG.demonstratorName], 1)[0],
       speed: Number(urlVar('speed')) || 1,
       agent: null, cb: null, conditionIndex: null, assignment: 'random',
@@ -114,22 +114,30 @@
     function matchHTML() {
       const similar = S.agent === 'similar';
       const how = similar
-        ? `Your answers matched on 5 question(s) out of 5.`
-        : `Your answers matched on 1 question(s) out of 5.`;
-      // Similar: all the questions were answered the same. Dissimilar: all but one were answered differently.
-      const items = CONFIG.preferenceItems;
-      const listed = similar ? items : items.filter(x => x.id !== 'personality');
-      const list = `<ul style="display: inline-block; text-align: left; margin: 0 0 10px;">` +
-        listed.map(x => `<li>${x.question}</li>`).join('') + `</ul>`;
+        ? 'Your partner\u2019s answers matched yours on 4 question(s) out of 5.'
+        : 'Your partner\u2019s answers matched yours on 0 question(s) out of 5.';
+      // Similar: every answer was the same. Dissimilar: every answer was different (avatar included).
       const avatar = `<span class="gw-inline-avatar">${agentIcon(30, S.alexAvatar, `${S.name}\u2019s avatar`)}</span>`;
-      return `<p>${S.name} answered the same five questions about ${CONFIG.topicsText}. ${how}</p>` +
-        `<p>${similar ? 'Your answers were the same on these questions:' : 'Your answers were different on these questions:'}</p>` + list +
-        `<p>${S.name} ${similar ? 'also ' : ''}chose to play with this avatar: ${avatar}.</p>`;
+      const list = `<ul style="margin: 0 0 12px;">` +
+        CONFIG.preferenceItems.map(x => `<li>${x.question}</li>`).join('');
+      return `<p>Your partner answered the same five questions about ${CONFIG.topicsText}.</p>` +
+        `<p>${how}${similar ? ' Your answers were the same on these questions:' : ' Your answers were different on these questions:'}</p>` +
+        list;
     }
+    // Default "no profile picture" image: a grey head and shoulders on a light grey circle.
+    let picCount = 0;
+    const profilePic = size => {
+      const id = `gw-pic-${++picCount}`;
+      return `<svg width="${size}" height="${size}" viewBox="0 0 64 64" aria-hidden="true" style="flex-shrink: 0;">` +
+        `<defs><clipPath id="${id}"><circle cx="32" cy="32" r="32"/></clipPath></defs>` +
+        `<g clip-path="url(#${id})"><rect width="64" height="64" fill="#E4E6EA"/>` +
+        `<circle cx="32" cy="24" r="11.5" fill="#9AA0AA"/>` +
+        `<path d="M10,64 C10,47 20,39 32,39 C44,39 54,47 54,64 Z" fill="#9AA0AA"/></g></svg>`;
+    };
     function reminderHTML() {
       if (!CONFIG.showReminder) return '';
       const role = 'Player level: expert';
-      return `<div class="gw-reminder"><img class="gw-reminder-pic" src="${CONFIG.humanPortraitSmall}" alt="" width="46"><div><strong>${S.name}</strong><span>${role}</span></div></div>`;
+      return `<div class="gw-reminder">${profilePic(46)}<div><strong>${S.name}</strong><span>${role}</span></div></div>`;
     }
     const header = (title, sub = '', withReminder = false) =>
       `<div class="gw-head"><div><h2>${title}</h2>${sub ? `<p class="gw-sub">${sub}</p>` : ''}</div>${withReminder ? reminderHTML() : ''}</div>`;
@@ -353,12 +361,12 @@
 
     // ---------- Task explanation and check (repeats until correct) ----------
     const taskExplanation = () =>
-      '<p>In this study, you will be paired with another person who has taken part in an earlier version of this study and learned how to play the Gridworld.</p>' +
-      '<p>First, you will watch screen recordings of them playing. Afterwards, you will play the Gridworld yourself.</p>' +
+      '<p>In this study we are interested in how people learn from watching each other. We taught one group of Prolific participants to play a game called the Gridworld. Once they mastered the game, we recorded their rounds and those recordings are used as teaching videos in this study.</p>' +
+      '<p>You will be paired with one of the past participants and watch recordings of them playing. Then, you will play the Gridworld yourself.</p>' +
       '<p><strong>About the Gridworld</strong></p>' +
       '<p>In the Gridworld, there are four kinds of resources: grain, ore, wood and water. Each kind is worth a different number of points.</p>' +
       lineup() +
-      '<p>Only one resource can be collected in each round, and every step costs a point. The goal is to collect the most valuable resource while spending as few points as possible on steps.</p>';
+      '<p>Only one resource can be collected in each round, and every step costs a point. The goal is to collect the most valuable resource available in each round while spending as few points as possible on steps.</p>';
     const taskScreen = {
       type: jsPsychHtmlButtonResponse,
       stimulus: () => textScreen('What you will be doing in this study', taskExplanation()),
@@ -405,10 +413,10 @@
     // ---------- Demonstrator profile (similarity manipulation) ----------
     // Shown on the "Meet Alex" screen.
     const aboutAlex1 = () =>
-      `<p>${S.name} participated in an earlier version of this study, where players played the Gridworld to figure out each resource\u2019s value.</p>`;
+      `<p>Your partner in this game (Prolific participant ${S.name}) successfully completed the earlier version of the study and earned a perfect score on the resource-value test, indicating they mastered the game and learned the resource values. You will be watching recordings of their rounds to learn about the Gridworld.</p>`;
     function alexProfile(reminder) {
-      return `<div class="gw-profile">` +
-        `<img class="gw-portrait" src="${CONFIG.humanPortrait}" alt="" width="120">` +
+      return `<div class="gw-profile" style="align-items: flex-start; text-align: left;">` +
+        `<div style="align-self: center; margin: 4px 0 12px;">${profilePic(110)}</div>` +
         (reminder ? `<h3 class="gw-card-title">About ${S.name}</h3>` : '') +
         aboutAlex1() +
         (isSimCondition() ? matchHTML() : '') +
@@ -416,32 +424,38 @@
     }
     timeline.push({
       type: jsPsychHtmlButtonResponse,
-      stimulus: () => textScreen(`You will be learning from a previous Prolific participant \u2013 ${S.name}`, alexProfile(false)),
+      stimulus: () => textScreen(`Your partner in this game: Prolific participant ${S.name} (ID shortened for anonymity)`, alexProfile(false)),
       choices: ['Continue'],
       data: { task: 'demonstrator_intro' }
     });
 
     // ---------- Learning from the demonstrator, and check (repeats until correct) ----------
     const learnExplanation = () =>
-      `<p>In the earlier version of the study, ${S.name} scored perfectly on the resource-value test and collected the most valuable resource available in each of the last 20 rounds.</p>` +
-      `<p>Next, you\u2019ll watch screen recordings from some of those rounds. You can learn which resource is the most valuable by watching how ${S.name} collects them. Remember, in these rounds, ${S.name} always collects the most valuable resource available.</p>` +
-      `<p>${S.name} can only see in the direction ${S.name} is facing, and not through the brick walls. Areas ${S.name} hasn\u2019t seen yet are covered in grey fog, and the fog clears as ${S.name} explores, so you see the Gridworld as ${S.name} discovers it.</p>` +
-      `<p><strong>After watching ${S.name}, you\u2019ll collect resources yourself.</strong></p>`;
+      `<p>Next, you\u2019ll watch screen recordings of your partner playing the Gridworld. You can learn which resource is the most valuable by watching how your partner collects them. In these rounds, your partner always collects the most valuable resource available.</p>` +
+      `<p>In the game, your partner can only see in the direction they are facing, and not through the brick walls. Areas they haven\u2019t seen yet are covered in grey fog, and the fog clears as they explore, so you will see the Gridworld as they discover it.</p>` +
+      `<p><strong>After watching the recordings, you\u2019ll collect resources yourself.</strong></p>`;
     const learnScreen = {
       type: jsPsychHtmlButtonResponse,
-      stimulus: () => textScreen(`Learning from ${S.name}`, learnExplanation()),
+      // After a failed attempt, the partner's full description is shown again above the explanation.
+      stimulus: () => textScreen(`Learning from your partner in this study`, (attemptsUsed('demonstrator_check') > 0 ? alexProfile(false) : '') + learnExplanation()),
       choices: ['Continue'],
       data: { task: 'learning_explanation' }
     };
     const alexQs = () => [
-      { name: 'knows', prompt: `What does ${S.name} know?`, options: ['Where all the resources are', 'What each kind of resource is worth', 'Both of these', 'Neither of these'], correct: 'What each kind of resource is worth' },
-      { name: 'does', prompt: `What does ${S.name} always do?`, options: ['Collects the closest resource', 'Collects resources at random', 'Collects the most valuable resource available'], correct: 'Collects the most valuable resource available' },
-      { name: 'fog', prompt: 'What does the grey fog show?', options: ['Walls no one can walk through', `Areas ${S.name} hasn\u2019t seen yet`, 'Areas with no resources'], correct: `Areas ${S.name} hasn\u2019t seen yet` }
+      { name: 'knows', prompt: `What does your partner know?`, options: ['Where all the resources are', 'What each kind of resource is worth', 'Both of these', 'Neither of these'], correct: 'What each kind of resource is worth' },
+      { name: 'does', prompt: `What does your partner always do?`, options: ['Collects the closest resource', 'Collects resources at random', 'Collects the most valuable resource available'], correct: 'Collects the most valuable resource available' },
+      { name: 'fog', prompt: 'What does the grey fog show?', options: ['Walls no one can walk through', `Areas your partner hasn\u2019t seen yet`, 'Areas with no resources'], correct: `Areas your partner hasn\u2019t seen yet` },
+      // Comparison check: the correct answer depends on the condition.
+      {
+        name: 'match', prompt: 'To make sure you\u2019re paying attention: on which of these \u2018About you\u2019 questions did your answers match your partner\u2019s?',
+        options: [...CONFIG.preferenceItems.map(x => x.question), 'Which avatar would you like to play with in this game?', 'All of the above', 'None of the above', 'No comparison was shown to me'],
+        correct: S.agent === 'similar' ? 'All of the above' : S.agent === 'dissimilar' ? 'None of the above' : 'No comparison was shown to me'
+      }
     ];
     const alexCheck = {
       type: jsPsychSurveyMultiChoice,
       // The re-read panel includes Alex's description (what Alex knows) as well as the learning explanation.
-      preamble: () => `<div class="gw-screen gw-text"><h2>Quick check</h2><p>Please answer these questions.</p>${attemptLine('demonstrator_check')}${reread(aboutAlex1() + learnExplanation())}</div>`,
+      preamble: () => `<div class="gw-screen gw-text"><h2>Quick check</h2><p>Please answer these questions.</p>${attemptLine('demonstrator_check')}${reread(aboutAlex1() + (isSimCondition() ? matchHTML() : '') + learnExplanation())}</div>`,
       questions: () => alexQs().map(q => ({ name: q.name, prompt: q.prompt, options: q.options, required: true })),
       data: { task: 'demonstrator_check' },
       on_finish: data => {
@@ -459,7 +473,7 @@
     // ---------- Reminder about Alex, just before the rounds ----------
     timeline.push({
       type: jsPsychHtmlButtonResponse,
-      stimulus: () => textScreen(`Now you will watch the recordings of ${S.name} navigating the Gridworld and collecting resources`,
+      stimulus: () => textScreen(`Now you will watch the recordings of your partner navigating the Gridworld and collecting resources`,
         `<p>After observing 6 rounds, you\u2019ll collect resources yourself.</p>`
       ),
       choices: ['Start watching'],
@@ -480,7 +494,7 @@
         avatar: () => S.alexAvatar,
         speed: S.speed,
         timing: CONFIG.timing,
-        header_html: () => header(`Watch ${S.name} to learn which resource is the most valuable in the Gridworld`, '', true),
+        header_html: () => header(`Watch to learn which resource is the most valuable in the Gridworld`, '', true),
         data: { task: 'demo', demo_index: i + 1 }
       });
     });
@@ -489,7 +503,7 @@
     timeline.push({
       type: jsPsychHtmlButtonResponse,
       stimulus: () => textScreen('Your turn',
-        `<p>Now you\u2019ll collect resources yourself. Each kind of resource is worth the same as when ${S.name} was collecting.</p>` +
+        `<p>Now you\u2019ll collect resources yourself. Each kind of resource is worth the same as when your partner was collecting.</p>` +
         '<p>In each round, click the resource you want to collect. You\u2019ll walk to it by the shortest route and pick it up. You\u2019ll see your total points at the end.</p>'),
       choices: ['Start'],
       data: { task: 'test_intro' }
@@ -527,7 +541,7 @@
         recording: recordingFor(p.demo),
         counterbalance: () => S.cb,
         avatar: () => S.alexAvatar,
-        header_html: () => header(`Thinking about ${S.name}`, 'A moment from one of the rounds'),
+        header_html: () => header(`Thinking about your partner`, 'A moment from one of the rounds'),
         prompt: () => fill(p.prompt, Object.fromEntries(G.ROLES.map(r => [r, itemInline(r)]))),
         correct: 'A',
         data: { task: 'probe' }
@@ -558,16 +572,16 @@
     // Page 2: ratings and what participants were trying to do
     timeline.push({
       type: jsPsychSurveyHtmlForm,
-      preamble: () => textScreen(`About ${S.name}`, ''),
+      preamble: () => textScreen(`About the participant (${S.name})`, ''),
       html: () =>
-        likert('q_expert', `How competent was ${S.name} at collecting resources in the Gridworld?`, '1 Not competent at all', '7 Very competent') +
-        likert('q_common', `How much do you feel you might have in common with ${S.name}?`, '1 Very little', '7 Very much') +
-        likert('q_like', `How much do you think you might like ${S.name}?`, '1 Very little', '7 Very much') +
-        likert('q_imagine', `How easy was it to imagine what ${S.name} was thinking?`, '1 Very easy', '7 Very hard') +
+        likert('q_expert', `How competent was this participant at collecting resources in the Gridworld?`, '1 Not competent at all', '7 Very competent') +
+        likert('q_common', `How much do you feel you might have in common with this participant?`, '1 Very little', '7 Very much') +
+        likert('q_like', `How much do you think you might like this participant?`, '1 Very little', '7 Very much') +
+        likert('q_imagine', `How easy was it to imagine what this participant was thinking?`, '1 Very easy', '7 Very hard') +
         likert('q_human', 'While watching the recordings, how much did it feel like you were watching a real person play?', '1 Not at all', '7 Very much') +
-        choiceList('q_aim', `While watching ${S.name}, what were you mainly trying to do?`, [
-          ['remember', `Remember which resources ${S.name} picked`],
-          ['why', `Work out why ${S.name} did what ${S.name} did`],
+        choiceList('q_aim', `While watching this participant, what were you mainly trying to do?`, [
+          ['remember', `Remember which resources the participant picked`],
+          ['why', `Work out why the participant did what they did`],
           ['watch', 'Just watch'],
           ['other', 'Other (please explain)']]) +
         `<div class="gw-other" hidden><label class="gw-q" for="gw-q-aim-other">Please explain:</label>
@@ -597,12 +611,9 @@
     // Page 3: memory of the similarity information, and belief in the cover story
     timeline.push({
       type: jsPsychSurveyHtmlForm,
-      preamble: () => textScreen(`About ${S.name}`, ''),
+      preamble: () => textScreen(`About the participant (${S.name})`, ''),
       html: () =>
-        choiceList('q_answers', `Compared with yours, ${S.name}\u2019s answers to the \u2018about you\u2019 questions were\u2026`, [
-          ['similar', 'Very similar'], ['different', 'Very different'],
-          ['dont_remember', 'I don\u2019t remember'], ['not_mentioned', 'This wasn\u2019t mentioned']]) + '</fieldset>' +
-        choiceList('q_real', `Do you think ${S.name} was a real person who had done this task before?`, [
+        choiceList('q_real', `Do you think this participant was a real person who had done this task before?`, [
           ['yes', 'Yes'], ['unsure', 'Unsure'], ['no', 'No']]) +
         `<label class="gw-q" for="gw-q-real-explain">Please explain your answer.</label>
           <textarea id="gw-q-real-explain" name="q_real_explain" rows="3" required></textarea></fieldset>`,
@@ -611,7 +622,7 @@
       on_finish: data => {
         const r = data.response;
         Object.assign(data, {
-          q_answers_memory: r.q_answers, q_real: r.q_real, q_real_explain: r.q_real_explain
+          q_real: r.q_real, q_real_explain: r.q_real_explain
         });
       }
     });

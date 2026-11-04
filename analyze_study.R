@@ -1,289 +1,427 @@
 # =============================================================================
-# Learning from Alex (similarity-learning study): combine data files + quick analysis
+# Learning from a previous participant (similarity-learning study): data preparation and analysis
 # =============================================================================
-#
-# 1. Download the server's data folder (WinSCP: drag `data` to your computer).
-# 2. Set `data_dir` below to that folder, and list your own test runs in `test_ids`.
-# 3. Run the whole script (in RStudio: Source, or Ctrl+Shift+Enter).
-#
-# Output (in `out_dir`):
-#   trials_all.csv    every screen of every participant, one row each
-#   participants.csv  one row per participant, with all the measures used below
-#   far_transfer.png  plot of the main outcome (if ggplot2 is installed)
-#
-# Packages: dplyr, tidyr, readr, jsonlite (required); lme4, ggplot2 (optional).
-# install.packages(c("dplyr", "tidyr", "readr", "jsonlite", "lme4", "ggplot2"))
+# Run the chunks in order (in RStudio: Code > Run Region, or Ctrl+Alt+T inside a chunk).
+# Each chunk starts with a line ending in "----", which RStudio lists in the document outline.
+
+
+# ---- 1. Setup ----------------------------------------------------------------
+# Packages, settings and small helper functions used by every later chunk.
 
 suppressPackageStartupMessages({
   library(dplyr); library(tidyr); library(readr); library(jsonlite)
 })
 
-# ---- Settings ---------------------------------------------------------------
-data_dir   <- "data"                 # folder with the downloaded CSV files
-out_dir    <- "analysis_output"      # where combined files and the plot are written
-study_name <- "similarity-learning"  # keeps only this study's files (the folder is shared)
-test_ids   <- c()                    # Prolific IDs of your own test runs, e.g. c("test123")
+# Where the data are, and where results go
+data_dir   <- "data"                # the server's data folder, downloaded with WinSCP
+out_dir    <- "analysis_output"     # combined files, tables and plots are written here
+study_name <- "similarity-learning" # files from other studies in the same folder are ignored
 
-# Optional data-quality exclusions (decide these before looking at the results).
-exclude_pasted_text     <- FALSE     # drop participants who pasted into the open question (strategy question in version 0.1.0)
-max_seconds_away_demos  <- Inf       # drop participants away from the tab longer than this during Alex's rounds
+# Which participants to include
+versions   <- c("0.6.0")            # study versions to analyse; NULL = all versions
 
-# Adjust the models for value version (which resource is worth what)? With few participants per
-# condition x version cell the adjusted models cannot be estimated, so by default it is only done
-# once there are at least 40 analysed participants.
-adjust_for_version <- "auto"         # "auto", TRUE or FALSE
+# Belief that the partner was a real person (applied in chunk 2, so every later chunk uses it).
+# q_real: "Do you think this participant was a real person who had done this task before?"
+keep_real      <- c("yes", "unsure", "no")   # e.g. c("yes") keeps only those who said yes
+# q_human: "While watching the recordings, how much did it feel like you were watching a real person play?" (1-7)
+min_felt_human <- 1                          # e.g. 4 keeps only those who answered 4 or higher
 
 dir.create(out_dir, showWarnings = FALSE)
 
-# ---- Helpers ----------------------------------------------------------------
-# The server stores TRUE as "1" and FALSE as an empty cell; files saved by jsPsych itself use "true"/"false".
+# The server stores TRUE as "1" and FALSE as an empty cell (files saved by jsPsych itself use "true"/"false").
 as_bool <- function(x) !is.na(x) & tolower(x) %in% c("1", "true")
 num     <- function(x) suppressWarnings(as.numeric(x))
+# First non-empty value (participant-level values are repeated on many rows, or appear on one row only).
 first_value <- function(x) { x <- x[!is.na(x) & x != ""]; if (length(x)) x[1] else NA_character_ }
-# Answers to questionnaires are stored as small JSON texts, e.g. {"ease":3,"similarity":5}.
-json_field <- function(x, field) vapply(x, function(s) {
-  if (is.na(s) || s == "") return(NA_character_)
-  v <- tryCatch(fromJSON(s)[[field]], error = function(e) NULL)
-  if (is.null(v)) NA_character_ else as.character(v)
-}, character(1), USE.NAMES = FALSE)
+# Columns that only some versions of the study have are added as empty columns, so every chunk runs.
 ensure_cols <- function(df, cols) { for (cl in setdiff(cols, names(df))) df[[cl]] <- NA_character_; df }
-section <- function(title) cat("\n", strrep("=", 78), "\n ", title, "\n", strrep("=", 78), "\n", sep = "")
+heading <- function(title) cat("\n", strrep("=", 78), "\n ", title, "\n", strrep("=", 78), "\n", sep = "")
 
-# ---- 1. Import and combine --------------------------------------------------
+
+# ---- 2. Import, combine, and select participants -------------------------------
+# Reads every participant file, keeps this study's files, drops test runs and repeat files,
+# then (optionally) keeps participants by their belief that the partner was a real person.
+
 files <- list.files(data_dir, pattern = "\\.csv$", full.names = TRUE)
 files <- files[basename(files) != "index.csv"]
-if (!length(files)) stop("No CSV files found in '", data_dir, "'. Check data_dir.")
+if (!length(files)) stop("No CSV files found in '", data_dir, "'. Check data_dir in chunk 1.")
 
-trials <- bind_rows(lapply(files, function(f)
+raw <- bind_rows(lapply(files, function(f)
   read_csv(f, col_types = cols(.default = col_character()), show_col_types = FALSE, progress = FALSE) %>%
     mutate(source_file = basename(f))))
+raw <- ensure_cols(raw, c("meta_study", "study_version", "assignment", "q_real", "q_real_explain", "q_human"))
 
-trials <- ensure_cols(trials, c("meta_study", "assignment", "comprehension_failed", "focus_lost_count",
-                                "focus_lost_ms", "paste_count", "pasted_chars", "probe_correct", "confidence",
-                                "study_version", "q_confusing", "q_common", "q_like", "q_imagine_hard", "q_aim",
-                                "q_aim_other", "q_answers_memory", "q_real", "q_real_explain", "q_matching_belief"))
+heading("2. Import")
+cat("Files read:", length(files), "\n")
 
-section("1. Files")
-cat("CSV files read:", length(files), "\n")
-if (any(!is.na(trials$meta_study))) {
-  other <- trials %>% filter(is.na(meta_study) | meta_study != study_name) %>% distinct(source_file) %>% nrow()
-  trials <- trials %>% filter(meta_study == study_name)
-  cat("Files from other studies dropped:", other, "\n")
-}
-# Test runs: conditions forced through the link (assignment = "url") or IDs listed in test_ids.
-test_runs <- trials %>% filter(assignment == "url" | participant_id %in% test_ids) %>% distinct(participant_id, source_file)
-trials <- trials %>% filter(!(assignment %in% "url"), !(participant_id %in% test_ids))
-cat("Test-run files dropped:", nrow(test_runs), "\n")
+# Keep this study only.
+step <- function(label, before, after) cat(sprintf("  %-52s %4d files\n", label, n_distinct(before$source_file) - n_distinct(after$source_file)))
+trials <- raw %>% filter(meta_study == study_name)
+step("dropped: other studies", raw, trials)
 
-# The same person could appear twice (e.g. a reload); keep their most complete file.
-keep <- trials %>% count(participant_id, source_file, name = "rows") %>%
-  group_by(participant_id) %>% arrange(desc(rows), source_file) %>% slice(1) %>% ungroup()
-dups <- n_distinct(trials$source_file) - nrow(keep)
-trials <- trials %>% semi_join(keep, by = c("participant_id", "source_file"))
-if (dups > 0) cat("Duplicate files from the same participant dropped:", dups, "\n")
+# The same person twice (e.g. a reload or a second attempt): keep one file per person, preferring a
+# completed file, then the fuller file, then the earlier one.
+file_info <- trials %>% group_by(participant_id, source_file) %>%
+  summarise(completed = any(task %in% "test_summary"), rows = n(), received = first_value(receivedAt), .groups = "drop")
+keep_files <- file_info %>% group_by(participant_id) %>%
+  arrange(desc(completed), desc(rows), received, .by_group = TRUE) %>% slice(1) %>% ungroup()
+kept <- trials %>% semi_join(keep_files, by = c("participant_id", "source_file"))
+step("dropped: repeat files from the same person", trials, kept); trials <- kept
+
 cat("Participants:", n_distinct(trials$participant_id), "\n")
 
-# ---- 2. One row per participant ---------------------------------------------
-tests <- trials %>% filter(task == "test") %>%
-  transmute(participant_id, test_id, test_kind, choice_rank, choice_item,
-            chose_best = choice_rank == "best", chose_second = choice_rank == "second",
-            points = num(points), rt = num(rt))
+# Belief that the partner was a real person: taken from the end-of-study questions. Participants who
+# did not reach those questions (e.g. failed a comprehension check) have NA here.
+beliefs <- trials %>% group_by(participant_id) %>%
+  summarise(condition      = first_value(agent_condition),
+            q_real         = first_value(q_real),
+            q_real_explain = first_value(q_real_explain),
+            q_human        = num(first_value(q_human)), .groups = "drop") %>%
+  mutate(condition = factor(condition, levels = c("control", "similar", "dissimilar")))
 
-per_test <- tests %>% group_by(participant_id) %>% summarise(
-  far_trials        = sum(test_kind == "far"),
-  far_best_n        = sum(chose_best[test_kind == "far"]),
-  far_best_prop     = mean(chose_best[test_kind == "far"]),
-  far_second_prop   = mean(chose_second[test_kind == "far"]),
-  near_second_prop  = mean(chose_second[test_kind == "near"]),
-  test_points       = sum(points), .groups = "drop")
+cat("\n'Do you think this participant was a real person?' (participants who answered):\n")
+print(table(condition = beliefs$condition, q_real = beliefs$q_real))
+cat("\n'How much did it feel like watching a real person?' (1-7), by condition:\n")
+print(beliefs %>% filter(!is.na(q_human)) %>% group_by(condition) %>%
+        summarise(n = n(), mean = round(mean(q_human), 2), sd = round(sd(q_human), 2), .groups = "drop") %>% as.data.frame())
 
-participants <- trials %>% group_by(participant_id) %>% summarise(
-  condition            = first_value(agent_condition),
-  version              = first_value(counterbalance),
-  assignment           = first_value(assignment),
-  study_version        = first_value(study_version),
-  # Version 0.1.0 asked a strategy question and three ratings; from 0.2.0 on, the engagement questions.
-  question_set         = if (any(task %in% "engagement_open")) "engagement (0.2.0+)" else "ratings (0.1.0)",
-  item_best            = first_value(item_best),
-  item_second          = first_value(item_second),
-  participant_avatar   = first_value(participant_avatar),
-  alex_avatar          = first_value(alex_avatar),
-  match_item           = first_value(match_item),
-  comprehension_failed = first_value(comprehension_failed),
-  task_check_attempts  = sum(task == "task_check"),
-  alex_check_attempts  = sum(task == "demonstrator_check"),
-  completed            = any(task == "test_summary"),
-  minutes              = max(num(time_elapsed), na.rm = TRUE) / 60000,
-  # data quality
-  focus_lost_total     = sum(num(focus_lost_count), na.rm = TRUE),
-  seconds_away_total   = sum(num(focus_lost_ms), na.rm = TRUE) / 1000,
-  seconds_away_demos   = sum(num(focus_lost_ms)[task == "demo"], na.rm = TRUE) / 1000,
-  pasted_text          = any(num(paste_count)[task %in% c("rule_report", "engagement_open")] > 0, na.rm = TRUE),
-  # post-test measures
-  rank_of_best         = num(first_value(rank_of_best)),
-  rank_of_second       = num(first_value(rank_of_second)),
-  best_ranked_first    = rank_of_best == 1,
-  ranking_correct      = as_bool(first_value(ranking_correct)),
-  probe_choice         = first_value(probe_choice_item),
-  probe_correct        = as_bool(first_value(probe_correct)),
-  probe_confidence     = num(first_value(confidence)),
-  strategy_text        = json_field(first_value(response[task == "rule_report"]), "rule"),
-  # Likert answers are stored 0-6; +1 gives the 1-7 scale shown to participants
-  rating_ease          = num(json_field(first_value(response[task == "ratings"]), "ease")) + 1,
-  rating_expertise     = num(json_field(first_value(response[task == "ratings"]), "competence")) + 1,
-  rating_similarity    = num(json_field(first_value(response[task == "ratings"]), "similarity")) + 1,
-  # engagement questions (version 0.2.0 on)
-  q_confusing          = first_value(q_confusing),
-  q_common             = num(first_value(q_common)),          # 1 very little - 7 a lot
-  q_like               = num(first_value(q_like)),            # 1 very little - 7 a lot
-  q_imagine_hard       = num(first_value(q_imagine_hard)),    # 1 very easy - 7 very hard
-  q_aim                = first_value(q_aim),
-  q_aim_other          = first_value(q_aim_other),
-  q_answers_memory     = first_value(q_answers_memory),
-  q_real               = first_value(q_real),
-  q_real_explain       = first_value(q_real_explain),
-  q_matching_belief    = first_value(q_matching_belief),
-  .groups = "drop") %>%
-  left_join(per_test, by = "participant_id") %>%
-  mutate(condition = factor(condition, levels = c("control", "similar", "dissimilar")),
-         version = factor(version),
-         # Correct memory of the similarity information depends on the condition.
-         q_answers_correct = ifelse(is.na(q_answers_memory), NA,
-           q_answers_memory == c(similar = "similar", dissimilar = "different", control = "not_mentioned")[as.character(condition)]))
+# Apply the belief settings from chunk 1. Only participants who answered can be excluded this way;
+# those who left earlier are kept here so that later chunks can still count them.
+excluded_by_belief <- beliefs %>%
+  filter((!is.na(q_real) & !(q_real %in% keep_real)) | (!is.na(q_human) & q_human < min_felt_human))
+trials <- trials %>% filter(!(participant_id %in% excluded_by_belief$participant_id))
+cat("\nExcluded by the belief settings (keep_real = ", paste(keep_real, collapse = "/"),
+    ", min_felt_human = ", min_felt_human, "): ", nrow(excluded_by_belief), " participants\n", sep = "")
+cat("Participants after this step:", n_distinct(trials$participant_id), "\n")
 
-# ---- 3. Exclusions ----------------------------------------------------------
-section("2. Sample and exclusions")
-cat("Failed a comprehension check (asked to return):", sum(!is.na(participants$comprehension_failed)), "\n")
-cat("Did not finish for another reason:            ", sum(is.na(participants$comprehension_failed) & !participants$completed), "\n")
-sample <- participants %>% filter(completed, is.na(comprehension_failed))
-n0 <- nrow(sample)
-if (exclude_pasted_text) sample <- sample %>% filter(!pasted_text)
-sample <- sample %>% filter(seconds_away_demos <= max_seconds_away_demos)
-cat("Completed:", n0, "| excluded by data-quality rules:", n0 - nrow(sample), "| analysed:", nrow(sample), "\n\n")
-cat("Participants per condition and value version (balance check):\n")
-print(table(condition = sample$condition, version = sample$version))
-cat("\nQuestion sets at the end of the study:\n"); print(table(sample$question_set))
-cat("\nHow participants were assigned (balanced = by the server; random_fallback = server unavailable):\n")
-print(table(sample$assignment))
-cat("\nMinutes to complete: median", round(median(sample$minutes), 1),
-    "| 10th-90th percentile", paste(round(quantile(sample$minutes, c(.1, .9)), 1), collapse = "-"), "\n")
-cat("Comprehension: participants needing more than one attempt -",
-    "task check:", sum(sample$task_check_attempts > 1), "| Alex check:", sum(sample$alex_check_attempts > 1), "\n")
+# ---- 3. Parse the JSON answers ---------------------------------------------------
+# Some answers are stored together as JSON text in the `response` column, e.g.
+# {"knows": "...", "does": "...", "fog": "...", "match": "..."}. This chunk turns them into columns.
 
-describe <- function(df, var) df %>% group_by(condition) %>%
-  summarise(n = sum(!is.na(.data[[var]])), mean = mean(.data[[var]], na.rm = TRUE),
-            sd = sd(.data[[var]], na.rm = TRUE), .groups = "drop") %>%
-  mutate(across(c(mean, sd), ~ round(.x, 2))) %>% as.data.frame()
-safe <- function(expr, what) tryCatch(expr, error = function(e) cat("  (", what, "not run: ", conditionMessage(e), ")\n", sep = ""))
-
-# ---- 4. Manipulation check --------------------------------------------------
-section("3. Manipulation check")
-manip_check <- function(var, label) {
-  d <- sample %>% filter(!is.na(.data[[var]]))
-  if (nrow(d) == 0) return(invisible())
-  cat("\n", label, "\n", sep = ""); print(describe(d, var))
-  safe({ print(anova(lm(as.formula(paste(var, "~ condition")), data = d)))
-         cat("Pairwise comparisons (Holm-corrected p-values):\n")
-         print(pairwise.t.test(d[[var]], d$condition, p.adjust.method = "holm")) }, "test")
+json_to_cols <- function(df) {
+  parsed <- lapply(df$response, function(s)
+    if (is.na(s) || !startsWith(s, "{")) list() else tryCatch(fromJSON(s, simplifyVector = TRUE), error = function(e) list()))
+  for (k in unique(unlist(lapply(parsed, names))))
+    df[[k]] <- vapply(parsed, function(p) if (is.null(p[[k]])) NA_character_ else as.character(p[[k]])[1], character(1))
+  df
 }
-manip_check("q_common", "'How much do you feel you might have in common with Alex?' (1-7; version 0.2.0 on)")
-manip_check("rating_similarity", "'How similar to you does Alex seem?' (1-7; version 0.1.0)")
+attempts_of <- function(task_name) trials %>% filter(task %in% task_name) %>%
+  mutate(order = num(trial_index)) %>% arrange(participant_id, order) %>%
+  group_by(participant_id) %>% mutate(attempt = row_number()) %>% ungroup() %>% json_to_cols()
 
-# ---- 5. Main outcome: choosing the best resource on far-transfer trials -----
-section("4. Main outcome: chose the BEST resource on far-transfer trials")
-cat("Per-participant proportion of the 2 far trials on which the best resource was chosen:\n")
-print(describe(sample, "far_best_prop"))
-cat("\nCopying Alex instead (chose the second-best on far trials):\n")
-print(describe(sample, "far_second_prop"))
+trials <- ensure_cols(trials, c("trial_index", "passed", "n_correct", "resource_names_matched"))
 
-far <- tests %>% filter(test_kind == "far") %>% inner_join(sample %>% select(participant_id, condition, version), by = "participant_id")
-use_version <- if (identical(adjust_for_version, "auto")) nrow(sample) >= 40 else isTRUE(adjust_for_version)
-covs <- if (use_version) " + version" else ""
-cat("\nModels below", if (use_version) "are adjusted for value version." else "are not adjusted for value version (too few participants; see adjust_for_version).", "\n")
-cat("\nMain model: one row per participant (far trials with the best resource, out of 2),",
-    "\nlogistic regression, control condition as reference:\n")
-safe({ m1 <- glm(as.formula(paste("cbind(far_best_n, far_trials - far_best_n) ~ condition", covs)), data = sample, family = binomial)
-       print(round(summary(m1)$coefficients, 3))
-       cat("\nOdds ratios with 95% CI:\n")
-       print(round(exp(cbind(OR = coef(m1), suppressMessages(confint.default(m1)))), 2)) }, "model")
+# "About you" answers: one row per participant (choice for each question, and the avatar they chose).
+prefs <- trials %>% filter(task %in% "preferences") %>% json_to_cols() %>%
+  select(participant_id, ends_with("_choice"), -any_of("probe_choice")) %>% distinct(participant_id, .keep_all = TRUE)
 
-cat("\nCheck: mixed model of each far choice, with a random intercept per participant:\n")
-if (requireNamespace("lme4", quietly = TRUE)) {
-  safe({ m2 <- suppressWarnings(lme4::glmer(as.formula(paste("chose_best ~ condition", covs, "+ (1 | participant_id)")), data = far, family = binomial))
-         co <- summary(m2)$coefficients; print(round(co, 3))
-         # With only two far trials per person, many participants answer both the same way, which can make
-         # this model unstable. Report the per-participant model above if so.
-         if (lme4::isSingular(m2) || any(abs(co[, "Estimate"]) > 10))
-           cat("Note: this model is unstable here (singular fit or extreme estimates); rely on the main model above.\n") }, "mixed model")
+# Both comprehension checks: one row per attempt.
+task_attempts    <- attempts_of("task_check")          # resource_count, resource_names, per_round, cost
+partner_attempts <- attempts_of("demonstrator_check")  # knows, does, fog, match (match from version 0.6.0)
+
+heading("3. Parsed answers")
+cat("'About you' answers:", nrow(prefs), "participants; columns:", paste(setdiff(names(prefs), "participant_id"), collapse = ", "), "\n")
+cat("Task check attempts:", nrow(task_attempts), "| partner check attempts:", nrow(partner_attempts), "\n")
+
+
+# ---- 4. Comprehension checks ----------------------------------------------------
+# Attempts per check, whether each question was right on each attempt, and who passed first time.
+# Correct answers (the study scores the checks itself; these are only used to see WHICH question was wrong):
+partner_correct <- function(df) df %>% mutate(
+  ok_knows = knows %in% "What each kind of resource is worth",
+  ok_does  = startsWith(coalesce(does, ""), "Collects the most valuable resource available"),
+  ok_fog   = grepl("^Areas .* seen yet$", coalesce(fog, "")),
+  # the correct comparison answer depends on the participant's condition (compared row by row)
+  ok_match = coalesce(match == unname(c(similar = "All of the above", dissimilar = "None of the above",
+                                        control = "No comparison was shown to me")[agent_condition]), FALSE))
+task_correct <- function(df) df %>% mutate(
+  ok_count    = resource_count %in% "4",
+  ok_names    = sapply(strsplit(coalesce(resource_names_matched, ""), ","), length) == 4,
+  ok_per_round = per_round %in% "One",
+  ok_cost     = cost %in% "Every step")
+
+task_attempts    <- task_correct(ensure_cols(task_attempts, c("resource_count", "per_round", "cost")))
+partner_attempts <- partner_correct(ensure_cols(partner_attempts, c("knows", "does", "fog", "match")))
+
+summarise_check <- function(df, prefix, ok_cols) df %>% group_by(participant_id) %>% summarise(
+  attempts   = n(),
+  passed     = as_bool(last(passed)),
+  first_try  = as_bool(first(passed)),
+  first_wrong = paste(sub("^ok_", "", ok_cols)[!unlist(across(all_of(ok_cols), first))], collapse = ","),
+  .groups = "drop") %>% rename_with(~ paste0(prefix, .x), -participant_id)
+checks_pp <- full_join(
+  summarise_check(task_attempts, "taskcheck_", c("ok_count", "ok_names", "ok_per_round", "ok_cost")),
+  summarise_check(partner_attempts, "partnercheck_", c("ok_knows", "ok_does", "ok_fog", "ok_match")),
+  by = "participant_id")
+
+heading("4. Comprehension checks")
+cc <- checks_pp %>% left_join(beliefs %>% select(participant_id, condition), by = "participant_id")
+cat("Attempts needed at the partner check (participants who reached it):\n")
+print(table(condition = cc$condition, attempts = cc$partnercheck_attempts))
+first_attempts <- partner_attempts %>% filter(attempt == 1) %>%
+  mutate(condition = factor(agent_condition, levels = c("control", "similar", "dissimilar")))
+cat("\nWrong on the FIRST attempt at the partner check, by question (proportion):\n")
+print(first_attempts %>% group_by(condition) %>% summarise(n = n(),
+                                                           knows = round(mean(!ok_knows), 2), does = round(mean(!ok_does), 2), fog = round(mean(!ok_fog), 2),
+                                                           comparison = round(mean(!ok_match), 2), .groups = "drop") %>% as.data.frame())
+cat("\nWrong on the FIRST attempt at the task check, by question (proportion):\n")
+print(task_attempts %>% filter(attempt == 1) %>% summarise(n = n(),
+                                                           count = round(mean(!ok_count), 2), names = round(mean(!ok_names), 2),
+                                                           per_round = round(mean(!ok_per_round), 2), cost = round(mean(!ok_cost), 2)) %>% as.data.frame())
+
+
+# ---- 5. Alex's rounds: recordings, watching time, pauses ------------------------
+# One row per round (`rounds`), and per participant (`rounds_pp`).
+
+trials <- ensure_cols(trials, c("demo_id", "demo_index", "demo_source", "watch_ms", "paused_count", "paused_ms",
+                                "focus_lost_count", "focus_lost_ms"))
+rounds <- trials %>% filter(task %in% "demo") %>%
+  transmute(participant_id, condition = agent_condition, round = num(demo_index), demo_id, demo_source,
+            watch_s = num(watch_ms) / 1000,
+            paused_count = num(paused_count), paused_s = num(paused_ms) / 1000,
+            away_count = num(focus_lost_count), away_s = num(focus_lost_ms) / 1000)
+
+rounds_pp <- rounds %>% group_by(participant_id) %>% summarise(
+  rounds_watched     = n(),
+  all_recordings     = all(demo_source %in% "recording"),
+  watch_minutes      = round(sum(watch_s, na.rm = TRUE) / 60, 2),
+  pauses_total       = sum(paused_count, na.rm = TRUE),
+  paused_seconds     = round(sum(paused_s, na.rm = TRUE), 1),
+  rounds_with_pause  = sum(paused_count > 0, na.rm = TRUE),
+  seconds_away_demos = round(sum(away_s, na.rm = TRUE), 1),
+  .groups = "drop")
+
+heading("5. Alex's rounds")
+cat("Rounds from recordings:", sum(rounds$demo_source %in% "recording"), "of", nrow(rounds), "\n")
+cat("Participants with at least one pause:", sum(rounds_pp$pauses_total > 0), "of", nrow(rounds_pp), "\n")
+cat("\nPer round: mean watching time (s) and how many participants paused it:\n")
+print(rounds %>% group_by(round, demo_id) %>% summarise(n = n(), watch_s = round(mean(watch_s), 1),
+                                                        paused_by = sum(paused_count > 0, na.rm = TRUE), .groups = "drop") %>% as.data.frame())
+
+
+# ---- 6. Test choices --------------------------------------------------------------
+# Near rounds: only the second-best, third and worst resources (copying the partner works).
+# Far rounds: the best resource (never collected by the partner) next to the second-best, at equal
+# distance. Choosing the best on far rounds is the main outcome.
+
+trials <- ensure_cols(trials, c("test_id", "test_kind", "test_index", "options", "choice_role", "choice_rank",
+                                "choice_item", "chose_best_available", "points", "steps"))
+tests <- trials %>% filter(task %in% "test") %>%
+  transmute(participant_id, condition = agent_condition, round = num(test_index), test_id, test_kind,
+            options, choice_role, choice_rank, choice_item,
+            chose_best = choice_rank %in% "best", chose_second = choice_rank %in% "second",
+            chose_best_available = as_bool(chose_best_available),
+            points = num(points), steps = num(steps), rt_s = num(rt) / 1000)
+
+tests_pp <- tests %>% group_by(participant_id) %>% summarise(
+  far_trials             = sum(test_kind == "far"),
+  far_best_n             = sum(chose_best[test_kind == "far"]),
+  far_best_prop          = mean(chose_best[test_kind == "far"]),
+  far_second_prop        = mean(chose_second[test_kind == "far"]),
+  near_second_prop       = mean(chose_second[test_kind == "near"]),     # the best available on near rounds
+  test_points            = sum(points),
+  test_median_rt_s       = round(median(rt_s), 2),
+  .groups = "drop")
+
+heading("6. Test choices")
+tp <- tests_pp %>% left_join(beliefs %>% select(participant_id, condition), by = "participant_id")
+cat("Main outcome: proportion of far rounds on which the BEST resource was chosen, by condition:\n")
+print(tp %>% group_by(condition) %>% summarise(
+  n = n(),
+  all_correct      = sum(far_best_prop == 1 & near_second_prop == 1),
+  all_correct_prop = round(mean(far_best_prop == 1 & near_second_prop == 1), 2),
+  far_best    = round(mean(far_best_prop), 2),
+  far_second  = round(mean(far_second_prop), 2),
+  near_second = round(mean(near_second_prop), 2),
+  .groups = "drop") %>% as.data.frame())
+
+tp <- tp %>% mutate(all_correct = factor(far_best_prop == 1 & near_second_prop == 1, levels = c(FALSE, TRUE)))
+
+# 1. Overall: does the proportion all-correct differ across the three conditions?
+tab <- table(condition = tp$condition, all_correct = tp$all_correct)
+print(tab)
+fisher.test(tab)
+
+# 2. Logistic regression: similar and dissimilar each compared with control
+m <- glm(all_correct ~ condition, data = tp, family = binomial)
+summary(m)$coefficients
+exp(cbind(odds_ratio = coef(m), confint.default(m)))   # odds ratios with 95% CIs
+anova(m, test = "Chisq")                               # overall effect of condition
+
+# 3. Each pair of conditions, corrected for three comparisons (Holm)
+pairs <- combn(levels(tp$condition), 2, simplify = FALSE)
+p_pairs <- sapply(pairs, function(pr) {
+  d <- tp %>% filter(condition %in% pr) %>% mutate(condition = droplevels(condition))
+  fisher.test(table(d$condition, d$all_correct))$p.value })
+data.frame(comparison = sapply(pairs, paste, collapse = " vs "),
+           p = round(p_pairs, 3), p_holm = round(p.adjust(p_pairs, "holm"), 3))
+
+
+# ---- 7. Ranking and the final question about the partner ------------------------
+# Ranking: the four resources ordered from most to least valuable (rank 1 = most valuable).
+# Final question: a frozen moment from one round; "What was the participant hoping to find there?"
+# (correct = the best resource, role A), with a confidence rating (0-100).
+
+trials <- ensure_cols(trials, c("rank_of_best", "rank_of_second", "rank_of_third", "rank_of_worst", "ranking_items",
+                                "display_order", "probe_choice", "probe_choice_item", "confidence"))
+post_pp <- trials %>% group_by(participant_id) %>%
+  filter(any(task %in% "ranking")) %>%
+  summarise(
+    rank_of_best      = num(first_value(rank_of_best[task %in% "ranking"])),
+    rank_of_second    = num(first_value(rank_of_second[task %in% "ranking"])),
+    rank_of_third     = num(first_value(rank_of_third[task %in% "ranking"])),
+    rank_of_worst     = num(first_value(rank_of_worst[task %in% "ranking"])),
+    ranking_order     = first_value(ranking_items[task %in% "ranking"]),
+    probe_choice      = first_value(probe_choice[task %in% "probe"]),        # A = best, B, C, D, or "none"
+    probe_choice_item = first_value(probe_choice_item[task %in% "probe"]),
+    probe_confidence  = num(first_value(confidence[task %in% "probe"])),
+    .groups = "drop") %>%
+  mutate(best_ranked_first = rank_of_best == 1,
+         best_above_second = rank_of_best < rank_of_second,
+         ranking_correct   = rank_of_best == 1 & rank_of_second == 2 & rank_of_third == 3 & rank_of_worst == 4,
+         probe_correct     = probe_choice %in% "A")
+
+heading("7. Ranking and final question")
+pp7 <- post_pp %>% left_join(beliefs %>% select(participant_id, condition), by = "participant_id")
+print(pp7 %>% group_by(condition) %>% summarise(n = n(),
+                                                best_ranked_first = round(mean(best_ranked_first), 2), best_above_second = round(mean(best_above_second), 2),
+                                                ranking_correct = round(mean(ranking_correct), 2), probe_correct = round(mean(probe_correct), 2),
+                                                probe_confidence = round(mean(probe_confidence, na.rm = TRUE), 1), .groups = "drop") %>% as.data.frame())
+
+
+
+
+# ---- 8. End-of-study questions -------------------------------------------------
+# One row per participant who reached the end-of-study questions (three pages):
+#   page 1  q_confusing   "Did anything about the study seem confusing, strange, or otherwise in need of change?"
+#           pasted_open   whether text was pasted into that answer
+#   page 2  q_expert      competence of the participant at collecting resources (1 not competent - 7 very competent)
+#           q_common      how much they might have in common with the participant (1 very little - 7 very much)
+#           q_like        how much they might like the participant (1 very little - 7 very much)
+#           q_imagine_hard  how easy to imagine what the participant was thinking (1 very EASY - 7 very HARD, as asked)
+#           q_imagine_easy  the same, reversed so that higher = easier (8 - q_imagine_hard)
+#           q_human       how much it felt like watching a real person play (1 not at all - 7 very much)
+#           q_aim         what they were mainly trying to do while watching; q_aim_other if "Other"
+#   page 3  q_real        "Do you think this participant was a real person who had done this task before?"
+#           q_real_explain  explanation (asked only after "Unsure" or "No")
+
+trials <- ensure_cols(trials, c("q_confusing", "q_expert", "q_common", "q_like", "q_imagine_hard", "q_human",
+                                "q_aim", "q_aim_other", "q_real", "q_real_explain", "paste_count", "rt"))
+page_value <- function(var, page) first_value(var[task %in% page])
+
+end_qs <- trials %>% group_by(participant_id) %>%
+  filter(any(task %in% "engagement_ratings")) %>%
+  summarise(
+    condition       = first_value(agent_condition),
+    version         = first_value(counterbalance),
+    demonstrator    = first_value(demonstrator_name),
+    study_version   = first_value(study_version),
+    q_confusing     = first_value(q_confusing),
+    pasted_open     = any(num(paste_count[task %in% "engagement_open"]) > 0, na.rm = TRUE),
+    q_expert        = num(first_value(q_expert)),
+    q_common        = num(first_value(q_common)),
+    q_like          = num(first_value(q_like)),
+    q_imagine_hard  = num(first_value(q_imagine_hard)),
+    q_human         = num(first_value(q_human)),
+    q_aim           = first_value(q_aim),
+    q_aim_other     = first_value(q_aim_other),
+    q_real          = first_value(q_real),
+    q_real_explain  = first_value(q_real_explain),
+    seconds_ratings = round(num(first_value(rt[task %in% "engagement_ratings"])) / 1000, 1),
+    .groups = "drop") %>%
+  mutate(q_imagine_easy = 8 - q_imagine_hard,
+         condition = factor(condition, levels = c("control", "similar", "dissimilar")),
+         q_real    = factor(q_real, levels = c("yes", "unsure", "no")),
+         q_aim     = factor(q_aim, levels = c("remember", "why", "watch", "other")))
+
+heading("8. End-of-study questions")
+cat("Participants who answered them:", nrow(end_qs), "\n\n")
+
+cat("Ratings by condition (mean, with SD in brackets; 1-7):\n")
+ratings <- c(competence = "q_expert", in_common = "q_common", like = "q_like",
+             imagine_easy = "q_imagine_easy", felt_human = "q_human")
+rating_table <- end_qs %>% group_by(condition) %>%
+  summarise(n = n(), across(all_of(unname(ratings)), ~ sprintf("%.2f (%.2f)", mean(.x, na.rm = TRUE), sd(.x, na.rm = TRUE))), .groups = "drop")
+names(rating_table) <- c("condition", "n", names(ratings))
+print(as.data.frame(rating_table))
+
+cat("\nWhile watching, what were you mainly trying to do?\n")
+print(table(condition = end_qs$condition, aim = end_qs$q_aim, useNA = "ifany"))
+
+cat("\nDo you think this participant was a real person who had done this task before?\n")
+print(table(condition = end_qs$condition, real = end_qs$q_real, useNA = "ifany"))
+
+cat("\nPasted text into the open question:", sum(end_qs$pasted_open), "participant(s)\n")
+
+# All open answers in one file for reading through.
+write_csv(end_qs %>% select(participant_id, condition, q_confusing, pasted_open, q_aim, q_aim_other, q_real, q_real_explain),
+          file.path(out_dir, "end_questions_open_answers.csv"))
+write_csv(end_qs, file.path(out_dir, "end_questions.csv"))
+cat("Saved: end_questions.csv (all answers) and end_questions_open_answers.csv (open answers) in '", out_dir, "'\n", sep = "")
+
+
+
+# ---- 9. Participant table ------------------------------------------------------
+# One row per participant: identification, condition, completion status and time taken, joined with
+# the per-participant tables from the earlier chunks. Each chunk's table is joined if that chunk has
+# been run: checks_pp (chunk 4), rounds_pp (chunk 5), tests_pp (chunk 6), post_pp (chunk 7),
+# end_qs (chunk 8).
+
+trials <- ensure_cols(trials, c("comprehension_failed", "time_elapsed", "condition_index", "participant_avatar",
+                                "alex_avatar", "demonstrator_name", "receivedAt", "item_best", "item_second"))
+
+participants <- trials %>% group_by(participant_id) %>%
+  summarise(
+    study_version        = first_value(study_version),
+    condition            = first_value(agent_condition),
+    version              = first_value(counterbalance),        # which resource is worth what (0-3)
+    condition_index      = first_value(condition_index),       # cell 0-11 (condition x version)
+    assignment           = first_value(assignment),            # balanced / random_fallback / url
+    demonstrator         = first_value(demonstrator_name),     # the ID shown for the partner
+    participant_avatar   = first_value(participant_avatar),
+    partner_avatar       = first_value(alex_avatar),
+    item_best            = first_value(item_best),
+    item_second          = first_value(item_second),
+    comprehension_failed = first_value(comprehension_failed),  # task_check / demonstrator_check, or NA
+    completed            = any(task %in% "test_summary"),
+    minutes              = round(max(num(time_elapsed), na.rm = TRUE) / 60000, 1),
+    saved_at             = first_value(receivedAt),
+    source_file          = first_value(source_file),
+    .groups = "drop") %>%
+  mutate(status = case_when(completed ~ "completed",
+                            comprehension_failed %in% "task_check" ~ "failed task check",
+                            comprehension_failed %in% "demonstrator_check" ~ "failed partner check",
+                            TRUE ~ "incomplete"),
+         condition = factor(condition, levels = c("control", "similar", "dissimilar")))
+
+# Join the per-participant tables from the other chunks (those that have been run).
+for (tbl in c("checks_pp", "rounds_pp", "tests_pp", "post_pp", "end_qs")) {
+  if (exists(tbl)) {
+    extra <- get(tbl) %>% select(-any_of(c("condition", "version", "study_version", "demonstrator")))
+    participants <- participants %>% left_join(extra, by = "participant_id")
+    cat("Joined:", tbl, "\n")
+  }
 }
 
-# ---- 6. Other measures ------------------------------------------------------
-section("5. Near-transfer trials (copying Alex works): chose the second-best")
-print(describe(sample, "near_second_prop"))
+heading("9. Participant table")
+cat("Participants:", nrow(participants), "| columns:", ncol(participants), "\n\n")
+cat("Status by condition:\n")
+print(table(condition = participants$condition, status = participants$status))
+cat("\nCompleted participants per condition and value version (balance check):\n")
+done <- participants %>% filter(completed)
+print(table(condition = done$condition, version = done$version))
+cat("\nHow participants were assigned:\n"); print(table(done$assignment))
+cat("\nMinutes to complete (completed participants): median", median(done$minutes),
+    "| range", paste(range(done$minutes), collapse = " - "), "\n")
+cat("Partner IDs shown:\n"); print(table(condition = done$condition, demonstrator = done$demonstrator))
 
-section("6. Value ranking: best resource ranked first")
-print(sample %>% group_by(condition) %>% summarise(n = n(), best_ranked_first = round(mean(best_ranked_first, na.rm = TRUE), 2),
-                                                   fully_correct = round(mean(ranking_correct, na.rm = TRUE), 2), .groups = "drop") %>% as.data.frame())
-safe(print(suppressWarnings(chisq.test(table(sample$condition, sample$best_ranked_first)))), "chi-square")
-
-section("7. Belief probe: 'What was Alex hoping to find?' (correct = best resource)")
-print(sample %>% group_by(condition) %>% summarise(n = n(), correct = round(mean(probe_correct, na.rm = TRUE), 2),
-                                                   confidence = round(mean(probe_confidence, na.rm = TRUE), 1), .groups = "drop") %>% as.data.frame())
-
-section("8. Ratings of Alex (1-7)")
-show_rating <- function(var, label) if (any(!is.na(sample[[var]]))) { cat("\n", label, "\n", sep = ""); print(describe(sample, var)) }
-show_rating("q_like", "How much might you like Alex? (1 very little - 7 a lot)")
-show_rating("q_imagine_hard", "How easy to imagine what Alex was thinking? (1 very EASY - 7 very HARD)")
-show_rating("rating_ease", "Ease of understanding Alex's reasons (version 0.1.0)")
-show_rating("rating_expertise", "Alex's expertise (version 0.1.0)")
-if (sum(!is.na(sample$q_imagine_hard)) > 3) {
-  cat("\nDoes finding Alex hard to imagine go with choosing the best resource less? (Spearman, all conditions)\n")
-  safe(print(cor.test(sample$q_imagine_hard, sample$far_best_prop, method = "spearman", exact = FALSE)), "correlation")
-}
-
-section("8b. Engagement and beliefs (version 0.2.0 on)")
-eng <- sample %>% filter(question_set != "ratings (0.1.0)")
-if (nrow(eng) == 0) cat("No participants with the engagement questions yet.\n") else {
-  cat("While watching, what were you mainly trying to do?\n"); print(table(condition = eng$condition, aim = eng$q_aim))
-  cat("\nChose the best resource on far trials, by what they were trying to do:\n")
-  print(eng %>% group_by(q_aim) %>% summarise(n = n(), far_best = round(mean(far_best_prop, na.rm = TRUE), 2), .groups = "drop") %>% as.data.frame())
-  cat("\nRemembered the information about Alex's answers correctly\n(similar: 'very similar'; dissimilar: 'very different'; control: 'this wasn't mentioned'):\n")
-  print(eng %>% group_by(condition) %>% summarise(n = n(), correct = round(mean(q_answers_correct, na.rm = TRUE), 2), .groups = "drop") %>% as.data.frame())
-  print(table(condition = eng$condition, answer = eng$q_answers_memory))
-  cat("\nDo you think Alex was a real person who had done this task before?\n"); print(table(condition = eng$condition, real = eng$q_real))
-  cat("\nChose the best resource on far trials, by belief that Alex was real:\n")
-  print(eng %>% group_by(q_real) %>% summarise(n = n(), far_best = round(mean(far_best_prop, na.rm = TRUE), 2), .groups = "drop") %>% as.data.frame())
-  sim <- eng %>% filter(condition %in% c("similar", "dissimilar"))
-  if (nrow(sim)) { cat("\nBelieved they were matched with Alex based on their answers (similar and dissimilar only):\n")
-                   print(table(condition = droplevels(sim$condition), believed = sim$q_matching_belief)) }
-}
-
-section("9. Data quality (tab switches and pasting)")
-print(sample %>% group_by(condition) %>% summarise(
-  n = n(), any_focus_lost = sum(focus_lost_total > 0), away_during_demos = sum(seconds_away_demos > 0),
-  median_seconds_away = round(median(seconds_away_total), 1), pasted_text = sum(pasted_text), .groups = "drop") %>% as.data.frame())
-
-# ---- 7. Save and plot -------------------------------------------------------
-write_csv(trials, file.path(out_dir, "trials_all.csv"))
 write_csv(participants, file.path(out_dir, "participants.csv"))
-# All open-ended answers in one file, for reading through.
-write_csv(participants %>% select(participant_id, condition, study_version, far_best_prop, q_confusing, q_aim, q_aim_other,
-                                  q_real, q_real_explain, q_matching_belief, strategy_text, comprehension_failed),
-          file.path(out_dir, "open_answers.csv"))
-if (requireNamespace("ggplot2", quietly = TRUE)) {
-  library(ggplot2)
-  plot_df <- sample %>% group_by(condition) %>%
-    summarise(mean = mean(far_best_prop), se = sd(far_best_prop) / sqrt(n()), n = n(), .groups = "drop")
-  g <- ggplot(plot_df, aes(condition, mean)) +
-    geom_col(fill = "#7F77DD", width = 0.6) +
-    geom_errorbar(aes(ymin = pmax(mean - se, 0), ymax = pmin(mean + se, 1)), width = 0.15) +
-    geom_jitter(data = sample, aes(condition, far_best_prop), width = 0.12, height = 0, alpha = 0.4, inherit.aes = FALSE) +
-    geom_text(aes(y = 0.03, label = paste0("n = ", n)), colour = "white", size = 3.5) +
-    scale_y_continuous(limits = c(0, 1.05), labels = scales::percent) +
-    labs(x = NULL, y = "Far trials: best resource chosen",
-         title = "Choosing the best resource", subtitle = "Far-transfer trials; Alex never collected this resource") +
-    theme_minimal(base_size = 13)
-  ggsave(file.path(out_dir, "far_transfer.png"), g, width = 6, height = 4.5, dpi = 150)
-}
-cat("\nSaved to '", out_dir, "': trials_all.csv, participants.csv, open_answers.csv",
-    if (requireNamespace("ggplot2", quietly = TRUE)) ", far_transfer.png" else "", "\n", sep = "")
+cat("\nSaved: participants.csv in '", out_dir, "'\n", sep = "")
+
+#-------
+dat <- participants %>% filter(completed)
+table(dat$q_real, dat$far_best_n)                                     # far-round choices by belief
+fisher.test(table(dat$condition, dat$q_real))                         # does belief differ by condition?
+summary(glm(cbind(far_best_n, 2 - far_best_n) ~ condition + q_human, data = dat, family = binomial))
+cat("\nNumber of far rounds (out of 2) with the best resource chosen:\n")
+print(table(condition = tp$condition, far_best_n = tp$far_best_n))
