@@ -116,10 +116,10 @@
       const how = similar
         ? 'Your partner\u2019s answers matched yours on 4 question(s) out of 5.'
         : 'Your partner\u2019s answers matched yours on 0 question(s) out of 5.';
-      // Similar: every answer was the same. Dissimilar: every answer was different (avatar included).
-      const avatar = `<span class="gw-inline-avatar">${agentIcon(30, S.alexAvatar, `${S.name}\u2019s avatar`)}</span>`;
-      const list = `<ul style="margin: 0 0 12px;">` +
-        CONFIG.preferenceItems.map(x => `<li>${x.question}</li>`).join('');
+      // Similar: the four questions were answered the same (the avatar was not). Dissimilar: every answer was different.
+      const questions = CONFIG.preferenceItems.map(x => `<li>${x.question}</li>`).join('');
+      const avatarQuestion = similar ? '' : '<li>Which avatar would you like to play with in this game?</li>';
+      const list = `<ul style="margin: 0 0 12px;">${questions}${avatarQuestion}</ul>`;
       return `<p>Your partner answered the same five questions about ${CONFIG.topicsText}.</p>` +
         `<p>${how}${similar ? ' Your answers were the same on these questions:' : ' Your answers were different on these questions:'}</p>` +
         list;
@@ -342,7 +342,7 @@
     timeline.push({
       type: jsPsychSurveyHtmlForm,
       preamble: textScreen('A few questions about you', '<p>Before starting the task, please answer a few questions about yourself.</p>' +
-        '<p>These questions will be used to match you with another participant, so please be as honest as you can.</p>'),
+        '<p>Please be as honest as you can.</p>'),
       html: prefItems.map(it => `<fieldset class="gw-pref"><legend>${it.question}</legend>
         <div class="gw-choices gw-choices-col">${it.options.map(o => `<label><input type="radio" name="${it.id}_choice" value="${o}" required> ${o}</label>`).join('')}</div></fieldset>`).join('') +
         `<fieldset class="gw-pref"><legend>${CONFIG.avatarQuestion}</legend><div class="gw-avatar-choices">${avatarOrder.map(a =>
@@ -352,8 +352,8 @@
       on_finish: data => {
         const r = data.response;
         const pAvatar = r.avatar_choice;
-        if (S.agent === 'similar') S.alexAvatar = pAvatar;
-        else if (S.agent === 'dissimilar') S.alexAvatar = jsPsych.randomization.sampleWithoutReplacement(CONFIG.avatarOptions.filter(a => a !== pAvatar), 1)[0];
+        // Similar and dissimilar: the partner chose a different avatar from the participant.
+        if (isSimCondition()) S.alexAvatar = jsPsych.randomization.sampleWithoutReplacement(CONFIG.avatarOptions.filter(a => a !== pAvatar), 1)[0];
         Object.assign(data, { participant_avatar: pAvatar, alex_avatar: S.alexAvatar });
         jsPsych.data.addProperties({ participant_avatar: pAvatar, alex_avatar: S.alexAvatar });
       }
@@ -400,20 +400,28 @@
     timeline.push(comprehensionFailed('task_check'));
 
     // ---------- Matching with an expert ----------
-    const matchingMs = Math.round(jsPsych.randomization.randomInt(...CONFIG.matchingMs) / S.speed);
+    const matchingMs = Math.round((jsPsych.randomization.randomInt(...CONFIG.matchingMs) + 2000) / S.speed);
+    let matchTimer = null;
     timeline.push({
       type: jsPsychHtmlButtonResponse,
       stimulus: '<div class="gw-screen gw-matching"><div class="gw-spinner" role="progressbar" aria-label="Loading"></div>' +
         '<p class="gw-matching-text">Matching you with a previous participant\u2026</p></div>',
       choices: [],
       trial_duration: matchingMs,
+      on_load: () => {
+        matchTimer = setTimeout(() => {
+          const text = document.querySelector('.gw-matching-text');
+          if (text) text.textContent = 'Comparing answers\u2026';
+        }, matchingMs / 2);
+      },
+      on_finish: () => clearTimeout(matchTimer),
       data: { task: 'matching', matching_ms: matchingMs }
     });
 
     // ---------- Demonstrator profile (similarity manipulation) ----------
     // Shown on the "Meet Alex" screen.
     const aboutAlex1 = () =>
-      `<p>Your partner in this game (Prolific participant ${S.name}) successfully completed the earlier version of the study and earned a perfect score on the resource-value test, indicating they mastered the game and learned the resource values. You will be watching recordings of their rounds to learn about the Gridworld.</p>`;
+      `<p>Your partner in this game is Prolific participant ${S.name}. They successfully completed the earlier version of the study in which participants learned the values of resources in the Gridworld. You will be watching recordings of their rounds to learn about the Gridworld.</p>`;
     function alexProfile(reminder) {
       return `<div class="gw-profile" style="align-items: flex-start; text-align: left;">` +
         `<div style="align-self: center; margin: 4px 0 12px;">${profilePic(110)}</div>` +
@@ -431,7 +439,7 @@
 
     // ---------- Learning from the demonstrator, and check (repeats until correct) ----------
     const learnExplanation = () =>
-      `<p>Next, you\u2019ll watch screen recordings of your partner playing the Gridworld. You can learn which resource is the most valuable by watching how your partner collects them. In these rounds, your partner always collects the most valuable resource available.</p>` +
+      `<p>Next, you\u2019ll watch screen recordings of your partner playing the Gridworld. You can learn which resource is the most valuable by watching how your partner collects resources. In these rounds, your partner always collects the most valuable resource available.</p>` +
       `<p>In the game, your partner can only see in the direction they are facing, and not through the brick walls. Areas they haven\u2019t seen yet are covered in grey fog, and the fog clears as they explore, so you will see the Gridworld as they discover it.</p>` +
       `<p><strong>After watching the recordings, you\u2019ll collect resources yourself.</strong></p>`;
     const learnScreen = {
@@ -443,12 +451,12 @@
     };
     const alexQs = () => [
       { name: 'knows', prompt: `What does your partner know?`, options: ['Where all the resources are', 'What each kind of resource is worth', 'Both of these', 'Neither of these'], correct: 'What each kind of resource is worth' },
-      { name: 'does', prompt: `What does your partner always do?`, options: ['Collects the closest resource', 'Collects resources at random', 'Collects the most valuable resource available'], correct: 'Collects the most valuable resource available' },
+      { name: 'does', prompt: `What does your partner always do in these rounds?`, options: ['Collects the closest resource', 'Collects resources at random', 'Collects the most valuable resource available'], correct: 'Collects the most valuable resource available' },
       { name: 'fog', prompt: 'What does the grey fog show?', options: ['Walls no one can walk through', `Areas your partner hasn\u2019t seen yet`, 'Areas with no resources'], correct: `Areas your partner hasn\u2019t seen yet` },
       // Comparison check: the correct answer depends on the condition.
       {
         name: 'match', prompt: 'To make sure you\u2019re paying attention: on which of these \u2018About you\u2019 questions did your answers match your partner\u2019s?',
-        options: [...CONFIG.preferenceItems.map(x => x.question), 'Which avatar would you like to play with in this game?', 'All of the above', 'None of the above', 'No comparison was shown to me'],
+        options: [...CONFIG.preferenceItems.map(x => x.question), 'All of the above', 'None of the above', 'No comparison was shown to me'],
         correct: S.agent === 'similar' ? 'All of the above' : S.agent === 'dissimilar' ? 'None of the above' : 'No comparison was shown to me'
       }
     ];
@@ -518,8 +526,8 @@
         timing: CONFIG.testTiming,
         values: CONFIG.values,
         step_cost: CONFIG.stepCost,
-        header_html: header('Your turn', `Round ${i + 1} of ${tests.length}`),
-        instruction: 'Click the resource you want to collect.',
+        header_html: header('Click to collect the most valuable resource available', `Round ${i + 1} of ${tests.length}`),
+        instruction: '',
         button_label: i < tests.length - 1 ? 'Next round' : 'Continue',
         data: { task: 'test', test_index: i + 1 }
       });
